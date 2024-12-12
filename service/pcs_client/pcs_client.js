@@ -44,6 +44,13 @@ export function isEarlyAccessPortal(url) {
     return url.startsWith('https://validation.api.trustedservices.intel.com/');
 }
 
+function addApiKeyIfPresent(headers) {
+    if (Config.has('ApiKey') && Config.get('ApiKey') !== '') {
+        headers['Ocp-Apim-Subscription-Key'] = Config.get('ApiKey');
+    }
+    return headers;
+}
+
 async function doRequest(url, options) {
     const shortenUrl = parseAndShortenUrlForLogging(url);
     const startedAt = Date.now();
@@ -57,7 +64,7 @@ async function doRequest(url, options) {
             if (!options.headers) {
                 options.headers = {};
             }
-            options.headers['Ocp-Apim-Subscription-Key'] = Config.get('ApiKey');
+            addApiKeyIfPresent(options.headers);
         }
 
         // global options (proxy, timeout, etc)
@@ -116,7 +123,7 @@ export async function getCert(enc_ppid, cpusvn, pcesvn, pceid) {
       pceid: pceid,
     },
     method: 'GET',
-    headers: { 'Ocp-Apim-Subscription-Key': Config.get('ApiKey') },
+    headers: addApiKeyIfPresent({}),
   };
 
   return doRequest(Config.get('uri') + 'pckcert', options);
@@ -130,7 +137,7 @@ export async function getCerts(encPpid, pceid) {
             pceid,
         },
         method:  'GET',
-        headers: { 'Ocp-Apim-Subscription-Key': Config.get('ApiKey') },
+        headers: addApiKeyIfPresent({}),
     };
 
     return doRequest(`${Config.get('uri')}pckcerts`, options);
@@ -143,10 +150,7 @@ export async function getCertsWithManifest(platformManifest, pceid) {
             pceid,
         },
         method:  'POST',
-        headers: {
-            'Ocp-Apim-Subscription-Key': Config.get('ApiKey'),
-            'Content-Type':              'application/json',
-        },
+        headers: addApiKeyIfPresent({ 'Content-Type': 'application/json' }),
     };
 
     return doRequest(`${Config.get('uri')}pckcerts`, options);
