@@ -241,3 +241,8 @@ You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also
 
 1. The PCCS Design Guide is available at https://cc-enabling.trustedservices.intel.com/intel-sgx-tdx-pccs.
 2. There's a `Dockerfile` available for running the PCCS as a container. See the [README](container/README.md) in `container` subdirectory.
+
+HTTP deployments may set `USE_HTTPS` to `false` and `HTTP_PORT` to the desired
+port (default 8080). HTTPS remains the default. Both listeners use `hosts` and
+the configured request, headers and keepalive timeouts. Set `hosts` explicitly
+when exposing a container port. HTTP startup does not read TLS key files.
