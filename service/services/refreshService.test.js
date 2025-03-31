@@ -92,7 +92,9 @@ class TestContext {
             get: sinon.stub().callsFake(key => (key === 'DB_CONFIG' ? 'sqlite' : undefined))
         };
 
+        this.ednDao = { upsertTcbEvalDataNumbers: sinon.stub().resolves() };
         this.pcsClient = {
+            getTcbEvalDataNumbers: sinon.stub().resolves({ statusCode: 200, body: 'edn', headers: { 'tcb-evaluation-data-numbers-issuer-chain': 'edn-issuer-chain' } }),
             getCerts:             sinon.stub().resolves(makeCertResponse()),
             getCertsWithManifest: sinon.stub().resolves(makeCertResponse()),
             getPckCrl:            sinon.stub().resolves(makeCrlResponse()),
@@ -172,6 +174,7 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./refreshService.js', {
+            '../dao/tcbEvalDataNumbersDao.js': this.ednDao,
             '../utils/PccsError.js':                   { 'default': MockPccsError },
             '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
@@ -779,7 +782,9 @@ describe('refreshService', () => {
             expect(arg.fmspc).to.equal(FMSPC);
             expect(arg.version).to.equal(4);
             expect(arg.update_type).to.equal(Constants.UPDATE_TYPE_STANDARD);
-            expect(c.pcsCertificatesDao.upsertTcbInfoIssuerChain.calledOnce).to.be.true;
+            const tcbChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+                .filter(call => call.args[0] === ISSUER_CHAIN);
+            expect(tcbChains).to.have.length(1);
         });
 
         it('skips upsertEnclaveIdentity for failed identity fetches', async() => {
@@ -947,5 +952,41 @@ describe('refreshService', () => {
 
             expect(c.logger.error.calledWithMatch('Scheduled cache refresh failed')).to.be.true;
         });
+    });
+});
+
+
+describe('scheduled evaluation-number refresh', () => {
+    afterEach(() => { delete global.PCS_VERSION; });
+
+    it('writes SGX and TDX lists fetched before the collateral transaction', async() => {
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await target.scheduledRefresh();
+
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX)).to.equal(true);
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX)).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX, Buffer.from('edn'))).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX, Buffer.from('edn'))).to.equal(true);
+        const ednChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+            .filter(call => call.args[0] === 'edn-issuer-chain');
+        expect(ednChains).to.have.length(2);
+        expect(c.pcsClient.getTcbEvalDataNumbers.lastCall.calledBefore(c.sequelize.transaction.firstCall)).to.equal(true);
+    });
+
+    it('does not open the write transaction when an evaluation-number list returns 503', async() => {
+        const c = new TestContext();
+        c.pcsClient.getTcbEvalDataNumbers.resolves({ statusCode: 503, headers: {} });
+        const target = await c.getTarget();
+
+        await assert.rejects(
+            () => target.refreshCache('collateral'),
+            err => err.status === PccsStatus.PCCS_STATUS_NO_CACHE_DATA[0] &&
+                err.message === PccsStatus.PCCS_STATUS_NO_CACHE_DATA[1]
+        );
+        expect(c.sequelize.transaction.called).to.equal(false);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.called).to.equal(false);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
     });
 });

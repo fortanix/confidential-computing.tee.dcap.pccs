@@ -1,3 +1,5 @@
+import * as tcbEvalDataNumbersDao from '../../dao/tcbEvalDataNumbersDao.js';
+import { parseTcbEvalDataNumbersResponse } from '../../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -419,4 +421,13 @@ export async function getCrlFromPCS(uri) {
     await crlCacheDao.upsertCrl(uri, crl);
 
     return crl;
+}
+
+export async function getTcbEvalDataNumbersFromPCS(type) {
+    const result = parseTcbEvalDataNumbersResponse(await pcsClient.getTcbEvalDataNumbers(type));
+    await sequelize.transaction(async() => {
+        await tcbEvalDataNumbersDao.upsertTcbEvalDataNumbers(type, result.contents);
+        await pcsCertificatesDao.upsertTcbInfoIssuerChain(result[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]);
+    });
+    return result;
 }

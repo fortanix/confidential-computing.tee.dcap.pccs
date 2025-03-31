@@ -77,6 +77,10 @@ class CachingModeManager {
         return this._mode.getTcbInfoFromPCS(type, fmspc, version, update_type);
     }
 
+    async getTcbEvalDataNumbersFromPCS(type) {
+        return this._mode.getTcbEvalDataNumbersFromPCS(type);
+    }
+
     isRefreshable() {
         return this._mode.isRefreshable();
     }
