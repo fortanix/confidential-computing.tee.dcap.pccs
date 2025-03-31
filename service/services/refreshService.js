@@ -1,3 +1,5 @@
+import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
+import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -482,12 +484,15 @@ async function executeRefresh(type, fmspc) {
 
         // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
         const fetchStart = Date.now();
-        let pckCrlResults; let tcbResults; let enclaveResults;
+        let pckCrlResults; let tcbResults; let enclaveResults; let evaluationNumbers;
         if (global.PCS_VERSION > 3) {
-            [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
+            [pckCrlResults, tcbResults, enclaveResults, evaluationNumbers] = await Promise.all([
                 fetchAllPckCrls(),
                 fetchAllTcbs(),
                 fetchEnclaveIdentities(),
+                Promise.all([Constants.PROD_TYPE_SGX, Constants.PROD_TYPE_TDX].map(async type => ({
+                    type, ...parseTcbEvalDataNumbersResponse(await pcsClient.getTcbEvalDataNumbers(type)),
+                }))),
             ]);
         } else {
             logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
@@ -505,6 +510,10 @@ async function executeRefresh(type, fmspc) {
                 await persistAllPckCrls(pckCrlResults);
                 await persistAllTcbs(tcbResults);
                 await persistEnclaveIdentities(enclaveResults);
+                await runDbWriteOperations(evaluationNumbers.map(result => async() => {
+                    await tcbEvalDataNumbersDao.upsertTcbEvalDataNumbers(result.type, result.contents);
+                    await pcsCertificatesDao.upsertTcbInfoIssuerChain(result[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]);
+                }));
             }
             await persistRootcaCrl(rootcaCrlData);
             await persistCachedCrls(cachedCrlResults);

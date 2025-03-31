@@ -156,6 +156,14 @@ export async function getCertsWithManifest(platformManifest, pceid) {
     return doRequest(`${Config.get('uri')}pckcerts`, options);
 }
 
+export async function getTcbEvalDataNumbers(type) {
+    if (type !== Constants.PROD_TYPE_SGX && type !== Constants.PROD_TYPE_TDX) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+    }
+    const uri = `${Config.get('uri')}tcbevaluationdatanumbers`;
+    return doRequest(type === Constants.PROD_TYPE_TDX ? getTdxUrl(uri) : uri, { method: 'GET' });
+}
+
 export async function getPckCrl(ca) {
     const options = {
         searchParams: {
