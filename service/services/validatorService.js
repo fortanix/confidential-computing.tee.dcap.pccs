@@ -83,3 +83,16 @@ export function validateAndNormalizeUpdateType(update, canBeAll = false) {
     }
     return updateType;
 }
+
+
+export function validateTcbCollateralQueryParams(query) {
+    if (query.tcbEvaluationDataNumber === undefined) {
+        return { updateType: validateAndNormalizeUpdateType(query.update), tcbedn: -1 };
+    }
+    const value = query.tcbEvaluationDataNumber;
+    if (query.update !== undefined || typeof value !== 'string' || !/^[0-9]+$/.test(value) ||
+        !Number.isSafeInteger(Number(value))) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+    }
+    return { updateType: Constants.UPDATE_TYPE_TCBEDN, tcbedn: Number(value) };
+}

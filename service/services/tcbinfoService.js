@@ -33,12 +33,12 @@ import * as appUtil from '../utils/apputil.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 
 
-export async function getTcbInfo(type, fmspc, version, updateType) {
+export async function getTcbInfo(type, fmspc, version, updateType, tcbedn = -1) {
     // query tcbinfo from local database first
-    const tcbinfo = await fmspcTcbDao.getTcbInfo(type, fmspc, version, updateType);
+    const tcbinfo = await fmspcTcbDao.getTcbInfo(type, fmspc, version, updateType, tcbedn);
     let result = {};
     if (tcbinfo === null) {
-        result = await cachingModeManager.getTcbInfoFromPCS(type, fmspc, version, updateType);
+        result = await cachingModeManager.getTcbInfoFromPCS(type, fmspc, version, updateType, tcbedn);
     } else {
         result[appUtil.getTcbInfoIssuerChainName(version)] =
       tcbinfo.signing_cert + tcbinfo.root_cert;

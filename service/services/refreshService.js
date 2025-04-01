@@ -392,13 +392,15 @@ async function fetchAllTcbs() {
                 tcb.type,
                 tcb.fmspc,
                 tcb.version,
-                tcb.update_type
+                tcb.update_type,
+                tcb.tcbedn ?? -1
             );
             return {
                 type:        tcb.type,
                 fmspc:       tcb.fmspc,
                 version:     tcb.version,
                 update_type: tcb.update_type,
+                tcbedn: tcb.tcbedn ?? -1,
                 statusCode:  pckServerRes.statusCode,
                 tcbInfo:     getBodyBuffer(pckServerRes),
                 headers:     pckServerRes.headers
@@ -409,13 +411,14 @@ async function fetchAllTcbs() {
 
 // Persist TCB infos to DB (DB only, called within transaction)
 async function persistAllTcbs(downloadedTcbInfos) {
-    await runDbWriteOperations(downloadedTcbInfos.map(({ type, fmspc, version, update_type, statusCode, tcbInfo, headers }) => async() => {
+    await runDbWriteOperations(downloadedTcbInfos.map(({ type, fmspc, version, update_type, tcbedn, statusCode, tcbInfo, headers }) => async() => {
         if (statusCode === Constants.HTTP_SUCCESS && tcbInfo !== null) {
             await fmspcTcbDao.upsertFmspcTcb({
                 type,
                 fmspc,
                 version,
                 update_type,
+                tcbedn,
                 tcbinfo: tcbInfo,
             });
 
@@ -428,6 +431,10 @@ async function persistAllTcbs(downloadedTcbInfos) {
             return;
         }
 
+        if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
+            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}`);
+            return;
+        }
         logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }));
