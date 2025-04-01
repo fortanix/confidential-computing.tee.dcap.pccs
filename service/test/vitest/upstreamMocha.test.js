@@ -6,9 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { runMocha } from '../runMocha.js';
 
-test('runs every Mocha test, requires 387 passes, and fails when any test is pending', () => {
+test('runs every Mocha test, requires 413 passes, and fails when any test is pending', () => {
     const report = runMocha();
-    expect(report.stats.passes).toBe(387);
+    expect(report.stats.passes).toBe(413);
     expect(report.tests.some(testCase => testCase.fullTitle.includes('auth bypass regression'))).toBe(true);
     // eslint-disable-next-line no-console -- This line logs report.stats.passes.
     console.info(`Mocha: ${report.stats.passes} passing; detailed report in test-reports/mocha.json`);

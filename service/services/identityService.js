@@ -32,16 +32,17 @@ import Constants from '../constants/index.js';
 import * as enclaveIdentityDao from '../dao/enclaveIdentityDao.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 
-export async function getEnclaveIdentity(enclave_id, version, update_type) {
+export async function getEnclaveIdentity(enclave_id, version, update_type, tcbedn = -1) {
     // query enclave identity from local database first
     const enclaveIdentity = await enclaveIdentityDao.getEnclaveIdentity(
         enclave_id,
         version,
-        update_type
+        update_type,
+        tcbedn
     );
     let result = {};
     if (enclaveIdentity === null) {
-        result = await cachingModeManager.getEnclaveIdentityFromPCS(enclave_id, version, update_type);
+        result = await cachingModeManager.getEnclaveIdentityFromPCS(enclave_id, version, update_type, tcbedn);
     } else {
         result[Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN] =
             enclaveIdentity.signing_cert + enclaveIdentity.root_cert;
