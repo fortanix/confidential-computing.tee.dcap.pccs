@@ -99,18 +99,46 @@ async function fetchEnclaveIdentities() {
             };
         })
     );
+    for (const [enclaveId, version] of enclaveIdList) {
+        const numbers = new Map();
+        for (const item of retrievedEnclaveIdentities.filter(row => row.enclaveId === enclaveId && row.statusCode === Constants.HTTP_SUCCESS && row.identity)) {
+            try {
+                const number = JSON.parse(item.identity.toString('utf8')).enclaveIdentity?.tcbEvaluationDataNumber;
+                if (Number.isSafeInteger(number) && number > 0) {
+                    numbers.set(item.updateType, number);
+                }
+            } catch {
+                logger.warn(`Cannot extract evaluation number for enclave identity ${enclaveId}`);
+            }
+        }
+        const standard = numbers.get(Constants.UPDATE_TYPE_STANDARD);
+        const early = numbers.get(Constants.UPDATE_TYPE_EARLY);
+        if (!standard || !early) { continue; }
+        if (standard > early) {
+            logger.warn(`Invalid identity evaluation-number range: ${standard}..${early}`);
+            continue;
+        }
+        for (let tcbedn = standard; tcbedn <= early; tcbedn += 1) {
+            // Keep the range ordered instead of issuing an unbounded burst of requests.
+            // eslint-disable-next-line no-await-in-loop
+            const response = await pcsClient.getEnclaveIdentity(enclaveId, version, Constants.UPDATE_TYPE_TCBEDN, tcbedn);
+            retrievedEnclaveIdentities.push({ enclaveId, version, updateType: Constants.UPDATE_TYPE_TCBEDN,
+                tcbedn, statusCode: response.statusCode, identity: getBodyBuffer(response), headers: response.headers });
+        }
+    }
     return retrievedEnclaveIdentities;
 }
 
 // Persist enclave identities to DB (DB only, called within transaction)
 async function persistEnclaveIdentities(retrievedEnclaveIdentities) {
-    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, statusCode, identity }) => async() => {
+    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, tcbedn = -1, statusCode, identity }) => async() => {
         if (statusCode === Constants.HTTP_SUCCESS && identity !== null) {
             await enclaveIdentityDao.upsertEnclaveIdentity(
                 enclaveId,
                 identity,
                 version,
-                updateType
+                updateType,
+                tcbedn
             );
             return;
         }
