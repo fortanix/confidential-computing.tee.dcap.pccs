@@ -44,6 +44,7 @@ import {
     crlController,
     appraisalPolicyController,
     healthController,
+    versionController,
 } from '../controllers/index.js';
 import * as auth from '../middleware/auth.js';
 
@@ -83,6 +84,8 @@ sgxRouter.route('/qve/identity').get(identityController.getQveIdentity);
 sgxRouter.route('/rootcacrl').get(rootcacrlController.getRootCaCrl);
 
 sgxRouter.route('/crl').get(crlController.getCrl);
+
+sgxRouter.route('/version').get(versionController.getVersion);
 
 sgxRouter
     .route('/refresh')

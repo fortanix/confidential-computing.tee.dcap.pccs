@@ -40,6 +40,7 @@ import * as refreshController from './refreshController.js';
 import * as crlController from './crlController.js';
 import * as appraisalPolicyController from './appraisalPolicyController.js';
 import * as healthController from './healthController.js';
+import * as versionController from './versionController.js';
 
 export {
     platformsController,
@@ -53,4 +54,5 @@ export {
     crlController,
     appraisalPolicyController,
     healthController,
+    versionController,
 };
