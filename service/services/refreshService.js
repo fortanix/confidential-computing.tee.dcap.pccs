@@ -1,3 +1,4 @@
+import { validateFmspcStr } from './validatorService.js';
 import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
 import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 /*
@@ -569,6 +570,10 @@ async function executeRefresh(type, fmspc) {
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
+    }
+
+    if (type === 'certs') {
+        fmspc = validateFmspcStr(fmspc);
     }
 
     const lockKey = type === 'certs' ? `certs:${fmspc}` : 'collateral';
