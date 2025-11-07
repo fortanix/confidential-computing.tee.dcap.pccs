@@ -21,7 +21,9 @@ export async function getRefreshTimestampsAsObject(includeMissing = true) {
     const keys = [REFRESH_TYPE.DEFAULT, REFRESH_TYPE.CERTS];
     const result = Object.create(null);
     if (includeMissing) {
-        for (const key of keys) { result[key] = { success: null, failure: null }; }
+        for (const key of keys) {
+            result[key] = { success: null, failure: null };
+        }
     }
     const rows = await CacheTimestamp.findAll({ where: { cache_key: { [Op.in]: keys } } });
     for (const row of rows) {

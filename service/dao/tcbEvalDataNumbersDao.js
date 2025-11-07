@@ -4,9 +4,12 @@ import { TcbEvalDataNumbers, sequelize } from './models/index.js';
 import Constants from '../constants/index.js';
 
 export async function upsertTcbEvalDataNumbers(type, contents) {
-    return TcbEvalDataNumbers.upsert({ type, contents,
-        root_cert_id: Constants.ROOT_CERT_ID,
-        signing_cert_id: Constants.PROCESSOR_SIGNING_CERT_ID });
+    return TcbEvalDataNumbers.upsert({
+        type,
+        contents,
+        root_cert_id:    Constants.ROOT_CERT_ID,
+        signing_cert_id: Constants.PROCESSOR_SIGNING_CERT_ID
+    });
 }
 
 export async function getTcbEvalDataNumbers(type) {

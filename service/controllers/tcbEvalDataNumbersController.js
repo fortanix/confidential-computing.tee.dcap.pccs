@@ -8,7 +8,8 @@ async function getNumbers(type, req, res, next) {
         const value = await tcbEvalDataNumbersService.getTcbEvalDataNumbers(type);
         res.status(200).header('Content-Type', 'application/json')
             .header(Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN,
-                value[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]).send(value.contents);
+                value[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN])
+            .send(value.contents);
     } catch (err) {
         next(err);
     }

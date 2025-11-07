@@ -37,32 +37,32 @@ import logger from '../utils/Logger.js';
 
 const tableMigrations = [
     {
-        name:        'fmspc_tcbs',
-        createSql:   'CREATE TABLE fmspc_tcbs_temp (' +
+        name:      'fmspc_tcbs',
+        createSql: 'CREATE TABLE fmspc_tcbs_temp (' +
             'fmspc VARCHAR(255) NOT NULL, type INTEGER NOT NULL, version INTEGER NOT NULL, ' +
             'update_type VARCHAR(255) NOT NULL, tcbedn INTEGER NOT NULL, tcbinfo BLOB, ' +
             'root_cert_id INTEGER, signing_cert_id INTEGER, created_time DATETIME NOT NULL, ' +
             'updated_time DATETIME NOT NULL, PRIMARY KEY(fmspc, type, version, update_type, tcbedn))',
-        insertSql:   'INSERT INTO fmspc_tcbs_temp ' +
+        insertSql: 'INSERT INTO fmspc_tcbs_temp ' +
             '(fmspc, type, version, update_type, tcbedn, tcbinfo, root_cert_id, signing_cert_id, created_time, updated_time) ' +
             'SELECT fmspc, type, version, update_type, -1, tcbinfo, root_cert_id, signing_cert_id, created_time, updated_time ' +
             'FROM fmspc_tcbs',
-        temp:        'fmspc_tcbs_temp',
-        backup:      'fmspc_tcbs_backup',
+        temp:   'fmspc_tcbs_temp',
+        backup: 'fmspc_tcbs_backup',
     },
     {
-        name:        'enclave_identities',
-        createSql:   'CREATE TABLE enclave_identities_temp (' +
+        name:      'enclave_identities',
+        createSql: 'CREATE TABLE enclave_identities_temp (' +
             'id INTEGER NOT NULL, version INTEGER NOT NULL, update_type VARCHAR(255) NOT NULL, ' +
             'tcbedn INTEGER NOT NULL, identity BLOB, root_cert_id INTEGER, signing_cert_id INTEGER, ' +
             'created_time DATETIME NOT NULL, updated_time DATETIME NOT NULL, ' +
             'PRIMARY KEY(id, version, update_type, tcbedn))',
-        insertSql:   'INSERT INTO enclave_identities_temp ' +
+        insertSql: 'INSERT INTO enclave_identities_temp ' +
             '(id, version, update_type, tcbedn, identity, root_cert_id, signing_cert_id, created_time, updated_time) ' +
             'SELECT id, version, update_type, -1, identity, root_cert_id, signing_cert_id, created_time, updated_time ' +
             'FROM enclave_identities',
-        temp:        'enclave_identities_temp',
-        backup:      'enclave_identities_backup',
+        temp:   'enclave_identities_temp',
+        backup: 'enclave_identities_backup',
     },
 ];
 
@@ -80,9 +80,9 @@ async function hasTcbedn(sequelize, name, transaction) {
 }
 
 async function renameTable(sequelize, from, to, transaction) {
-    const sql = sequelize.getDialect() === 'mysql'
-        ? `RENAME TABLE ${from} TO ${to}`
-        : `ALTER TABLE ${from} RENAME TO ${to}`;
+    const sql = sequelize.getDialect() === 'mysql' ?
+        `RENAME TABLE ${from} TO ${to}` :
+        `ALTER TABLE ${from} RENAME TO ${to}`;
     await sequelize.query(sql, queryOptions(transaction));
 }
 

@@ -90,7 +90,7 @@ export function validateTcbCollateralQueryParams(query) {
         return { updateType: validateAndNormalizeUpdateType(query.update), tcbedn: -1 };
     }
     const value = query.tcbEvaluationDataNumber;
-    if (query.update !== undefined || typeof value !== 'string' || !/^[0-9]+$/.test(value) ||
+    if (query.update !== undefined || typeof value !== 'string' || !(/^[0-9]+$/).test(value) ||
         !Number.isSafeInteger(Number(value))) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
     }
@@ -99,7 +99,9 @@ export function validateTcbCollateralQueryParams(query) {
 
 
 export function validateFmspcStr(value) {
-    if (value === undefined || value === null || value === '') { return ''; }
+    if (value === undefined || value === null || value === '') {
+        return '';
+    }
     if (typeof value !== 'string') {
         throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
     }

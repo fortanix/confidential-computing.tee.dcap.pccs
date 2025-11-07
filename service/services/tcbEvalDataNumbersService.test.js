@@ -31,7 +31,7 @@ describe('TCB evaluation-number lists', () => {
         it(`delegates a ${label} cache miss to PCS`, async() => {
             const fetch = sinon.stub().resolves({ contents: 'fresh' });
             const service = await esmock('./tcbEvalDataNumbersService.js', {
-                '../dao/tcbEvalDataNumbersDao.js': { getTcbEvalDataNumbers: async() => null },
+                '../dao/tcbEvalDataNumbersDao.js':       { getTcbEvalDataNumbers: async() => null },
                 './caching_modes/cachingModeManager.js': { cachingModeManager: { getTcbEvalDataNumbersFromPCS: fetch } },
             });
 
@@ -43,7 +43,7 @@ describe('TCB evaluation-number lists', () => {
             const error = new Error('PCS down');
             const fetch = sinon.stub().rejects(error);
             const service = await esmock('./tcbEvalDataNumbersService.js', {
-                '../dao/tcbEvalDataNumbersDao.js': { getTcbEvalDataNumbers: async() => null },
+                '../dao/tcbEvalDataNumbersDao.js':       { getTcbEvalDataNumbers: async() => null },
                 './caching_modes/cachingModeManager.js': { cachingModeManager: { getTcbEvalDataNumbersFromPCS: fetch } },
             });
 
@@ -59,8 +59,8 @@ describe('TCB evaluation-number lists', () => {
     it('parses a successful body and its issuer-chain header', () => {
         const value = parseTcbEvalDataNumbersResponse({
             statusCode: 200,
-            body: 'list',
-            headers: { [CHAIN_HEADER]: 'chain' },
+            body:       'list',
+            headers:    { [CHAIN_HEADER]: 'chain' },
         });
 
         expect(value.contents.toString()).to.equal('list');

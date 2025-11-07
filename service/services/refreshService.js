@@ -115,7 +115,9 @@ async function fetchEnclaveIdentities() {
         }
         const standard = numbers.get(Constants.UPDATE_TYPE_STANDARD);
         const early = numbers.get(Constants.UPDATE_TYPE_EARLY);
-        if (!standard || !early) { continue; }
+        if (!standard || !early) {
+            continue;
+        }
         if (standard > early) {
             logger.warn(`Invalid identity evaluation-number range: ${standard}..${early}`);
             continue;
@@ -124,8 +126,15 @@ async function fetchEnclaveIdentities() {
             // Keep the range ordered instead of issuing an unbounded burst of requests.
             // eslint-disable-next-line no-await-in-loop
             const response = await pcsClient.getEnclaveIdentity(enclaveId, version, Constants.UPDATE_TYPE_TCBEDN, tcbedn);
-            retrievedEnclaveIdentities.push({ enclaveId, version, updateType: Constants.UPDATE_TYPE_TCBEDN,
-                tcbedn, statusCode: response.statusCode, identity: getBodyBuffer(response), headers: response.headers });
+            retrievedEnclaveIdentities.push({
+                enclaveId,
+                version,
+                updateType: Constants.UPDATE_TYPE_TCBEDN,
+                tcbedn,
+                statusCode: response.statusCode,
+                identity:   getBodyBuffer(response),
+                headers:    response.headers
+            });
         }
     }
     return retrievedEnclaveIdentities;
@@ -430,7 +439,7 @@ async function fetchAllTcbs() {
                 fmspc:       tcb.fmspc,
                 version:     tcb.version,
                 update_type: tcb.update_type,
-                tcbedn: tcb.tcbedn ?? -1,
+                tcbedn:      tcb.tcbedn ?? -1,
                 statusCode:  pckServerRes.statusCode,
                 tcbInfo:     getBodyBuffer(pckServerRes),
                 headers:     pckServerRes.headers
@@ -581,9 +590,9 @@ export async function refreshCache(type, fmspc) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
-    if (type === 'certs') { fmspc = validateFmspcStr(fmspc); }
+    const normalizedFmspc = type === 'certs' ? validateFmspcStr(fmspc) : fmspc;
 
-    const lockKey = type === 'certs' ? `certs:${fmspc}` : 'collateral';
+    const lockKey = type === 'certs' ? `certs:${normalizedFmspc}` : 'collateral';
     if (activeRefreshes.has(lockKey)) {
         logger.info(`[refreshCache] Refresh for key=${lockKey} already in progress, awaiting shared result`);
         return activeRefreshes.get(lockKey);
@@ -591,7 +600,7 @@ export async function refreshCache(type, fmspc) {
 
     // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
     // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
-    const refreshPromise = executeRefreshAndRecord(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
+    const refreshPromise = executeRefreshAndRecord(type, normalizedFmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }

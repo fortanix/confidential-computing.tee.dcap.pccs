@@ -36,7 +36,7 @@ export default class FmspcTcbs extends Sequelize.Model {
             {
                 fmspc:           { type: Sequelize.DataTypes.STRING, primaryKey: true },
                 type:            { type: Sequelize.DataTypes.INTEGER, primaryKey: true },
-                tcbedn: { type: Sequelize.DataTypes.INTEGER, primaryKey: true, allowNull: false, defaultValue: -1 },
+                tcbedn:          { type: Sequelize.DataTypes.INTEGER, primaryKey: true, allowNull: false, defaultValue: -1 },
                 version:         { type: Sequelize.DataTypes.INTEGER, primaryKey: true },
                 update_type:     { type: Sequelize.DataTypes.STRING, primaryKey: true },
                 tcbinfo:         { type: Sequelize.DataTypes.BLOB },
