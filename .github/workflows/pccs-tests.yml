@@ -80,6 +80,40 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  live-pcs:
+    name: Live Intel PCS refresh test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Read Node version from Dockerfile
+        id: node
+        run: echo "version=$(sed -n 's/^ARG NODE_VERSION=//p' service/container/Dockerfile)" >> "$GITHUB_OUTPUT"
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: npm
+          cache-dependency-path: service/package-lock.json
+      - name: Install and test refresh against live Intel PCS
+        working-directory: service
+        run: |
+          set -euo pipefail
+          mkdir -p test-reports/live
+          npm ci 2>&1 | tee test-reports/live/npm-ci.log
+          npm run test:live -- --reporter=default --reporter=json --outputFile=test-reports/live/vitest.json 2>&1 | tee test-reports/live/run.log
+      - name: Upload live PCS reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pccs-live-pcs
+          path: service/test-reports/live/
+          if-no-files-found: warn
+          retention-days: 14
+
   image-build:
     name: Test build Docker image
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
