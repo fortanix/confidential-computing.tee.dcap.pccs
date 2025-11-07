@@ -1,3 +1,4 @@
+import * as cacheTimestampDao from '../dao/cacheTimestampDao.js';
 import { validateFmspcStr } from './validatorService.js';
 import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
 import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
@@ -558,6 +559,23 @@ async function executeRefresh(type, fmspc) {
     }
 }
 
+async function executeRefreshAndRecord(type, fmspc) {
+    const key = type === 'certs' ? cacheTimestampDao.REFRESH_TYPE.CERTS : cacheTimestampDao.REFRESH_TYPE.DEFAULT;
+    try {
+        const result = await executeRefresh(type, fmspc);
+        await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), true, null));
+        return result;
+    } catch (error) {
+        try {
+            // Outside the failed collateral transaction; also serialize this write on SQLite.
+            await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), false, String(error)));
+        } catch (timestampError) {
+            logger.error(`Failed to record refresh failure: ${timestampError}`);
+        }
+        throw error;
+    }
+}
+
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
@@ -573,7 +591,7 @@ export async function refreshCache(type, fmspc) {
 
     // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
     // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
-    const refreshPromise = executeRefresh(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
+    const refreshPromise = executeRefreshAndRecord(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }

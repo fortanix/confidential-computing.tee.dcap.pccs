@@ -92,6 +92,7 @@ class TestContext {
             get: sinon.stub().callsFake(key => (key === 'DB_CONFIG' ? 'sqlite' : undefined))
         };
 
+        this.timestampDao = { REFRESH_TYPE: { CERTS: 'certs', DEFAULT: 'default' }, upsertCacheTimestamp: sinon.stub().resolves() };
         this.ednDao = { upsertTcbEvalDataNumbers: sinon.stub().resolves() };
         this.pcsClient = {
             getTcbEvalDataNumbers: sinon.stub().resolves({ statusCode: 200, body: 'edn', headers: { 'tcb-evaluation-data-numbers-issuer-chain': 'edn-issuer-chain' } }),
@@ -175,6 +176,7 @@ class TestContext {
     async getTarget() {
         return esmock.strict('./refreshService.js', {
             '../dao/tcbEvalDataNumbersDao.js': this.ednDao,
+            '../dao/cacheTimestampDao.js': this.timestampDao,
             '../utils/PccsError.js':                   { 'default': MockPccsError },
             '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
@@ -467,7 +469,8 @@ describe('refreshService', () => {
             const queueWaitLogs = c.logger.info.getCalls()
                 .map(call => call.args[0])
                 .filter(message => message.includes('SQLite write queue wait durationMs='));
-            expect(queueWaitLogs.length).to.equal(2);
+            // Two cert FMSPC refreshes. Each queues one certificate transaction and one timestamp write.
+            expect(queueWaitLogs.length).to.equal(4);
         });
 
         it('still serializes the next transaction after one fails', async() => {
@@ -1201,4 +1204,77 @@ describe('programmatic refresh FMSPC validation', () => {
             expect(c.pcsClient.getCerts.called).to.be.false;
         });
     }
+});
+
+
+describe('refresh success and failure timestamps', () => {
+    afterEach(() => { sinon.restore(); delete global.PCS_VERSION; });
+
+    it('records success once for coalesced refreshes after the collateral transaction', async() => {
+        const clock = sinon.useFakeTimers({ now: new Date('2026-01-02T03:04:05Z'), toFake: ['Date'] });
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await Promise.all([target.refreshCache(), target.refreshCache()]);
+
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.firstCall.args).to.deep.equal([
+            'default', new Date(clock.now), true, null,
+        ]);
+        expect(c.timestampDao.upsertCacheTimestamp.firstCall.calledAfter(c.sequelize.transaction.lastCall)).to.equal(true);
+    });
+
+    it('records a failure outside the rejected transaction and retains the original error', async() => {
+        const c = new TestContext();
+        const error = new Error('write failed');
+        c.sequelize.transaction.rejects(error);
+        const target = await c.getTarget();
+
+        let caught;
+        try {
+            await target.refreshCache();
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).to.equal(error);
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'default', sinon.match.date, false, String(error)
+        )).to.equal(true);
+    });
+
+    it('preserves the PCS error when recording the failure also fails', async() => {
+        const c = new TestContext();
+        const error = new Error('PCS down');
+        c.pcsClient.getTcb.rejects(error);
+        c.timestampDao.upsertCacheTimestamp.rejects(new Error('DB down'));
+        const target = await c.getTarget();
+
+        let caught;
+        try {
+            await target.refreshCache();
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).to.equal(error);
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'default', sinon.match.date, false, String(error)
+        )).to.equal(true);
+        expect(c.logger.error.calledWithMatch('Failed to record refresh failure')).to.equal(true);
+    });
+
+    it('records certificate refresh under the certs key', async() => {
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await target.refreshCache('certs', FMSPC);
+
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'certs', sinon.match.date, true, null
+        )).to.equal(true);
+    });
 });

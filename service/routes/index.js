@@ -45,6 +45,7 @@ import {
     appraisalPolicyController,
     healthController,
     versionController,
+    refreshHealthController,
     tcbEvalDataNumbersController,
 } from '../controllers/index.js';
 import * as auth from '../middleware/auth.js';
@@ -107,6 +108,8 @@ sgxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.ge
 tdxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.getTdxTcbEvalDataNumbers);
 
 //---------------- Routes for health probes--------------------------
+healthRouter.route('/health').get(refreshHealthController.getHealth);
+
 healthRouter.route('/live').get(healthController.getLiveness);
 
 healthRouter.route('/ready').get(healthController.getReadiness);

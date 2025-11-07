@@ -1,3 +1,5 @@
+import esmock from 'esmock';
+import PcsVersion from '../dao/models/pcs_version.js';
 /* Copyright (c) Fortanix, Inc.
  * SPDX-License-Identifier: BSD-3-Clause */
 import Sequelize from 'sequelize';
@@ -25,6 +27,8 @@ export async function createDatabase() {
 
 export function migrator(sequelize, maximum = '99') {
     const directory = path.resolve('migrations');
+    class MigrationPcsVersion extends PcsVersion {}
+    MigrationPcsVersion.init(sequelize);
     const migrations = fs.readdirSync(directory).sort().filter(name => name.slice(0, 2) <= maximum).map(name => ({
         name,
         up: async() => {
@@ -34,7 +38,10 @@ export function migrator(sequelize, maximum = '99') {
                     if (sql.trim()) { await sequelize.query(sql); }
                 }
             } else {
-                await (await import(pathToFileURL(path.join(directory, name)).href)).default.up(sequelize);
+                const module = name === '01_db_version_1.js'
+                    ? await esmock(path.join(directory, name), { '../dao/models/index.js': { PcsVersion: MigrationPcsVersion } })
+                    : await import(pathToFileURL(path.join(directory, name)).href);
+                await module.default.up(sequelize);
             }
         },
     }));
