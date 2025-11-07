@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export async function createDatabase() {
+export async function createDatabase(options = {}) {
     const database = process.env.PCCS_TEST_DATABASE;
     if (database && !['sqlite', 'mysql'].includes(database)) {
         throw new Error('PCCS_TEST_DATABASE must be sqlite or mysql');
@@ -22,7 +22,7 @@ export async function createDatabase() {
             port: Number(process.env.MYSQL_PORT || 3306), logging: false,
         });
     }
-    return new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+    return new Sequelize({ dialect: 'sqlite', storage: options.storage || ':memory:', logging: false });
 }
 
 export function migrator(sequelize, maximum = '99') {
