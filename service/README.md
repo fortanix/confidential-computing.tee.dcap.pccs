@@ -2,21 +2,25 @@
 
 # Table of Contents
 
-- [Introduction](#introduction)
-- [How to install](#how-to-install)
+- [Provisioning Certificate Caching Service (PCCS)](#provisioning-certificate-caching-service-pccs)
+- [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [How to install](#how-to-install)
     - [Prerequisites](#prerequisites)
     - [Install via Linux Debian package installer](#install-via-linux-debian-package-installer)
+      - [Using interactive installer](#using-interactive-installer)
+      - [In non-interactive mode](#in-non-interactive-mode)
     - [Install via RPM package installer](#install-via-rpm-package-installer)
     - [Linux manual installation](#linux-manual-installation)
-- [Configuration file (`config/default.json`)](#configuration-file-configdefaultjson)
-- [Caching Fill Mode](#caching-fill-mode)
-    - [LAZY mode](#lazy-mode)
-    - [REQ mode](#req-mode)
-    - [OFFLINE mode](#offline-mode)
-- [Local service vs. Remote service](#local-service-vs-remote-service)
-- [Manage the PCCS service](#manage-the-pccs-service)
-- [Uninstall](#uninstall)
-- [Further reading](#further-reading)
+  - [Configuration file *(`config/default.json`)*](#configuration-file-configdefaultjson)
+  - [Caching Fill Mode](#caching-fill-mode)
+    - [`LAZY` mode](#lazy-mode)
+    - [`REQ` mode](#req-mode)
+    - [`OFFLINE` mode](#offline-mode)
+  - [Local service vs. Remote service](#local-service-vs-remote-service)
+  - [Manage the PCCS service](#manage-the-pccs-service)
+  - [Uninstall](#uninstall)
+  - [Further reading](#further-reading)
 
 ## Introduction
 

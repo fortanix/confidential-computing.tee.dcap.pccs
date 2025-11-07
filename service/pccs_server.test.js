@@ -27,7 +27,7 @@ function makeHandler(name) {
 function makeControllerStubs() {
     return {
         tcbEvalDataNumbersController: { getSgxTcbEvalDataNumbers: makeHandler('sgxEdn'), getTdxTcbEvalDataNumbers: makeHandler('tdxEdn') },
-        refreshHealthController: { getHealth: makeHandler('refreshHealth') },
+        refreshHealthController:      { getHealth: makeHandler('refreshHealth') },
         versionController:            { getVersion: makeHandler('getVersion') },
         platformsController:          { getPlatforms: makeHandler('getPlatforms'), postPlatforms: makeHandler('postPlatforms') },
         platformCollateralController: { putPlatformCollateral: makeHandler('putPlatformCollateral') },
@@ -213,7 +213,7 @@ describe('package version route', () => {
         delete global.PCS_VERSION;
     });
 
-    for (const path of ['/sgx/certification/v3/version', '/sgx/certification/v4/version']) {
+    ['/sgx/certification/v3/version', '/sgx/certification/v4/version'].forEach((path) => {
         it(`GET ${path} does not require credentials and calls getVersion`, async() => {
             const res = await request(app).get(path);
 
@@ -221,7 +221,7 @@ describe('package version route', () => {
             expect(res.text).to.equal('getVersion');
             expect(controllers.versionController.getVersion.calledOnce).to.equal(true);
         });
-    }
+    });
 });
 
 describe('refresh health route', () => {
@@ -281,17 +281,17 @@ describe('refresh health route', () => {
 describe('HTTP and HTTPS listener configuration', () => {
     function listenerConfig(useHttps) {
         return {
-            uri:                    'https://example.com/sgx/certification/v4/',
-            USE_HTTPS:              useHttps,
-            HTTP_PORT:              8080,
-            HTTPS_PORT:             8081,
-            hosts:                  '0.0.0.0',
-            DB_CONFIG:              'sqlite',
-            sqlite:                 { options: { storage: '/tmp/listener-test.db' } },
-            CachingFillMode:        'LAZY',
-            RefreshSchedule:        '0 0 * * *',
-            RequestTimeoutSeconds:  42,
-            HeadersTimeoutSeconds:  23,
+            uri:                     'https://example.com/sgx/certification/v4/',
+            USE_HTTPS:               useHttps,
+            HTTP_PORT:               8080,
+            HTTPS_PORT:              8081,
+            hosts:                   '0.0.0.0',
+            DB_CONFIG:               'sqlite',
+            sqlite:                  { options: { storage: '/tmp/listener-test.db' } },
+            CachingFillMode:         'LAZY',
+            RefreshSchedule:         '0 0 * * *',
+            RequestTimeoutSeconds:   42,
+            HeadersTimeoutSeconds:   23,
             KeepAliveTimeoutSeconds: 17,
         };
     }
@@ -304,7 +304,7 @@ describe('HTTP and HTTPS listener configuration', () => {
         const httpsCreate = sinon.stub().returns(httpsServer);
         const readFileSync = sinon.stub().returns('test-pem');
         const mocks = makeServerDependencyMocks();
-        mocks.config = { default: { has: key => key in values, get: key => values[key] } };
+        mocks.config = { 'default': { has: key => key in values, get: key => values[key] } };
         mocks.http = { createServer: httpCreate };
         mocks.https = { createServer: httpsCreate };
         mocks.fs = { chmod: () => {}, readFileSync };
@@ -347,5 +347,7 @@ describe('HTTP and HTTPS listener configuration', () => {
         expect(httpsServer.keepAliveTimeout).to.equal(17000);
     });
 
-    after(() => { delete global.PCS_VERSION; });
+    after(() => {
+        delete global.PCS_VERSION;
+    });
 });

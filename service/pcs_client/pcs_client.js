@@ -194,7 +194,7 @@ export async function getTcb(type, fmspc, version, updateType, tcbedn = -1) {
     const options = {
         searchParams: {
             fmspc,
-            ...(updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update })
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };
@@ -226,7 +226,7 @@ export async function getEnclaveIdentity(enclaveId, version, updateType, tcbedn 
 
     const options = {
         searchParams: {
-            ...(updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update })
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };

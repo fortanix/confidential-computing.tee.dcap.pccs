@@ -96,13 +96,13 @@ class TestContext {
         this.ednDao = { upsertTcbEvalDataNumbers: sinon.stub().resolves() };
         this.pcsClient = {
             getTcbEvalDataNumbers: sinon.stub().resolves({ statusCode: 200, body: 'edn', headers: { 'tcb-evaluation-data-numbers-issuer-chain': 'edn-issuer-chain' } }),
-            getCerts:             sinon.stub().resolves(makeCertResponse()),
-            getCertsWithManifest: sinon.stub().resolves(makeCertResponse()),
-            getPckCrl:            sinon.stub().resolves(makeCrlResponse()),
-            getTcb:               sinon.stub().resolves(makeTcbResponse()),
-            getEnclaveIdentity:   sinon.stub().resolves(makeIdentityResponse()),
-            getFileFromUrl:       sinon.stub().resolves(CRL_DATA),
-            getHeaderValue:       sinon.stub().callsFake((headers, key) => headers[key])
+            getCerts:              sinon.stub().resolves(makeCertResponse()),
+            getCertsWithManifest:  sinon.stub().resolves(makeCertResponse()),
+            getPckCrl:             sinon.stub().resolves(makeCrlResponse()),
+            getTcb:                sinon.stub().resolves(makeTcbResponse()),
+            getEnclaveIdentity:    sinon.stub().resolves(makeIdentityResponse()),
+            getFileFromUrl:        sinon.stub().resolves(CRL_DATA),
+            getHeaderValue:        sinon.stub().callsFake((headers, key) => headers[key])
         };
 
         this.pckcertDao = {
@@ -175,8 +175,8 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./refreshService.js', {
-            '../dao/tcbEvalDataNumbersDao.js': this.ednDao,
-            '../dao/cacheTimestampDao.js': this.timestampDao,
+            '../dao/tcbEvalDataNumbersDao.js':         this.ednDao,
+            '../dao/cacheTimestampDao.js':             this.timestampDao,
             '../utils/PccsError.js':                   { 'default': MockPccsError },
             '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
@@ -960,7 +960,9 @@ describe('refreshService', () => {
 
 
 describe('scheduled evaluation-number refresh', () => {
-    afterEach(() => { delete global.PCS_VERSION; });
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
 
     it('writes SGX and TDX lists fetched before the collateral transaction', async() => {
         const c = new TestContext();
@@ -996,7 +998,9 @@ describe('scheduled evaluation-number refresh', () => {
 
 
 describe('refresh of cached evaluation-number TCB entries', () => {
-    afterEach(() => { delete global.PCS_VERSION; });
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
     it('keeps the explicit number on PCS requests and cache upserts', async() => {
         const c = new TestContext();
         c.fmspcTcbDao.getAllTcbs.resolves([{ ...makeDbTcb(), update_type: Constants.UPDATE_TYPE_TCBEDN, tcbedn: 7 }]);
@@ -1014,7 +1018,7 @@ describe('refresh of cached evaluation-number TCB entries', () => {
             c.fmspcTcbDao.getAllTcbs.resolves([{
                 ...makeDbTcb(),
                 update_type: Constants.UPDATE_TYPE_TCBEDN,
-                tcbedn:       7,
+                tcbedn:      7,
             }]);
             c.pcsClient.getTcb.resolves(makeTcbResponse(status));
             const target = await c.getTarget();
@@ -1031,7 +1035,9 @@ describe('refresh of cached evaluation-number TCB entries', () => {
 
 
 describe('enclave-identity evaluation-number refresh', () => {
-    afterEach(() => { delete global.PCS_VERSION; });
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
 
     const ENCLAVE_IDS = [
         Constants.QE_IDENTITY_ID,
@@ -1156,7 +1162,9 @@ describe('enclave-identity evaluation-number refresh', () => {
 
 
 describe('programmatic refresh FMSPC validation', () => {
-    afterEach(() => { delete global.PCS_VERSION; });
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
 
     async function refreshTwice(value) {
         const c = new TestContext();
@@ -1208,7 +1216,9 @@ describe('programmatic refresh FMSPC validation', () => {
 
 
 describe('refresh success and failure timestamps', () => {
-    afterEach(() => { sinon.restore(); delete global.PCS_VERSION; });
+    afterEach(() => {
+        sinon.restore(); delete global.PCS_VERSION;
+    });
 
     it('records success once for coalesced refreshes after the collateral transaction', async() => {
         const clock = sinon.useFakeTimers({ now: new Date('2026-01-02T03:04:05Z'), toFake: ['Date'] });

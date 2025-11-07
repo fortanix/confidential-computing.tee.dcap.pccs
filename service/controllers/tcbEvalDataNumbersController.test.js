@@ -19,14 +19,16 @@ describe('evaluation-number controllers', () => {
         it(`returns 200 JSON and the ${label} issuer chain`, async() => {
             const service = {
                 getTcbEvalDataNumbers: sinon.stub().resolves({
-                    contents: 'list',
+                    contents:                                             'list',
                     [Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]: 'chain',
                 }),
             };
             const controller = await loadController(service);
             const res = { status: sinon.stub().returnsThis(), header: sinon.stub().returnsThis(), send: sinon.spy() };
 
-            await controller[name]({}, res, err => { throw err; });
+            await controller[name]({}, res, err => {
+                throw err;
+            });
 
             expect(service.getTcbEvalDataNumbers.calledOnceWith(type)).to.equal(true);
             expect(res.status.calledOnceWith(200)).to.equal(true);
