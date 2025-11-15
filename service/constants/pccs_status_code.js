@@ -60,6 +60,7 @@ define('PCCS_STATUS_PCS_V3_REACHED_EOL', [
     410,
     'The Intel PCS API version 3 reached planned EOL. Accordingly, collateral from this API version cannot be retrieved any longer.',
 ]);
+define('PCCS_STATUS_NO_LONGER_AVAILABLE', [410, 'No longer available.']);
 define('PCCS_STATUS_INTERNAL_ERROR', [500, 'Internal server error occurred.']);
 define('PCCS_STATUS_SERVICE_UNAVAILABLE', [
     503,
