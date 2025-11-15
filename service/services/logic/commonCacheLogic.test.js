@@ -775,3 +775,54 @@ describe('commonCacheLogic', () => {
         });
     });
 });
+
+
+describe('PCS retired-collateral responses', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    const cases = [
+        {
+            why:        'reports PCS HTTP_GONE as PCCS_STATUS_NO_LONGER_AVAILABLE and does not write cache',
+            statusCode: Constants.HTTP_GONE,
+            expected:   PccsStatus.PCCS_STATUS_NO_LONGER_AVAILABLE,
+        },
+        {
+            why:        'keeps PCS HTTP_NOT_FOUND as PCCS_STATUS_NO_CACHE_DATA and does not write cache',
+            statusCode: Constants.HTTP_NOT_FOUND,
+            expected:   PccsStatus.PCCS_STATUS_NO_CACHE_DATA,
+        },
+        {
+            // 503 has no HTTP constant in Constants.
+            why:        'keeps PCS 503 as PCCS_STATUS_NO_CACHE_DATA and does not write cache',
+            statusCode: 503,
+            expected:   PccsStatus.PCCS_STATUS_NO_CACHE_DATA,
+        },
+    ];
+
+    for (const method of ['getTcbInfoFromPCS', 'getEnclaveIdentityFromPCS']) {
+        for (const { why, statusCode, expected } of cases) {
+            it(`${method} ${why}`, async() => {
+                const c = new TestContext();
+                c.pcsClient.getTcb.resolves({ statusCode, body: null });
+                c.pcsClient.getEnclaveIdentity.resolves({ statusCode, body: null });
+                const target = await c.getTarget();
+                const args = method === 'getTcbInfoFromPCS' ?
+                    [Constants.PROD_TYPE_SGX, FMSPC, 4] :
+                    [Constants.QE_IDENTITY_ID, 4];
+
+                let caught;
+                try {
+                    await target[method](...args, Constants.UPDATE_TYPE_TCBEDN, 7);
+                } catch (err) {
+                    caught = err;
+                }
+
+                expect(caught.status).to.equal(expected[0]);
+                expect(caught.message).to.equal(expected[1]);
+                expect(c.sequelize.transaction.called).to.equal(false);
+            });
+        }
+    }
+});
