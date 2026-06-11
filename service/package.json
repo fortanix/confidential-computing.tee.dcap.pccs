@@ -57,7 +57,8 @@
     "eslint": "eslint",
     "eslintFix": "eslint --fix",
     "test:vitest": "vitest run",
-    "test:all": "vitest run"
+    "test:all": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.js"
   },
   "allowScripts": {
     "core-js@3.50.0": true,
