@@ -1,0 +1,149 @@
+name: PCCS tests and image
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pccs-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: Lint and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Read Node version from Dockerfile
+        id: node
+        run: echo "version=$(sed -n 's/^ARG NODE_VERSION=//p' service/container/Dockerfile)" >> "$GITHUB_OUTPUT"
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: npm
+          cache-dependency-path: service/package-lock.json
+      - name: Install, lint, and run all tests
+        working-directory: service
+        run: |
+          set -euo pipefail
+          mkdir -p test-reports
+          npm ci 2>&1 | tee test-reports/npm-ci.log
+          npm run eslint -- . 2>&1 | tee test-reports/eslint.log
+          npm run test:all -- --reporter=default --reporter=json --outputFile=test-reports/vitest.json 2>&1 | tee test-reports/tests.log
+      - name: Upload test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pccs-tests
+          path: |
+            service/test-reports/
+            service/logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+  compose:
+    name: Compose and Rust integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run original Compose and Rust integration tests
+        run: |
+          set -euo pipefail
+          mkdir -p service/test-reports/compose
+          NODE_VERSION=$(sed -n 's/^ARG NODE_VERSION=//p' service/container/Dockerfile)
+          export NODE_VERSION
+          ./run_docker_compose_test.sh 2>&1 | tee service/test-reports/compose/run.log
+      - name: Upload Compose reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pccs-compose
+          path: service/test-reports/compose/
+          if-no-files-found: warn
+          retention-days: 14
+
+  live-pcs:
+    name: Live Intel PCS refresh test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Read Node version from Dockerfile
+        id: node
+        run: echo "version=$(sed -n 's/^ARG NODE_VERSION=//p' service/container/Dockerfile)" >> "$GITHUB_OUTPUT"
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: npm
+          cache-dependency-path: service/package-lock.json
+      - name: Install and test refresh against live Intel PCS
+        working-directory: service
+        run: |
+          set -euo pipefail
+          mkdir -p test-reports/live
+          npm ci 2>&1 | tee test-reports/live/npm-ci.log
+          npm run test:live -- --reporter=default --reporter=json --outputFile=test-reports/live/vitest.json 2>&1 | tee test-reports/live/run.log
+      - name: Upload live PCS reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pccs-live-pcs
+          path: service/test-reports/live/
+          if-no-files-found: warn
+          retention-days: 14
+
+  image-build:
+    name: Test build Docker image
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # build.py clones the published ref inside `docker build` and requires it
+      # to match checkout HEAD, so PRs build the head branch/commit (not the
+      # merge commit) from the head repository (which may be a fork).
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      # Node runs inside the image, not on the runner; pass the Dockerfile's
+      # version explicitly so build.py's built-in default cannot drift from it.
+      - name: Test build Docker image
+        env:
+          SOURCE_URL: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
+          SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p service/test-reports
+          NODE_VERSION=$(sed -n 's/^ARG NODE_VERSION=//p' service/container/Dockerfile)
+          ./container/pccs/build.py --source "$SOURCE_URL" --ref "$SOURCE_REF" --node-version "$NODE_VERSION" 2>&1 | tee service/test-reports/image-build.log
+      - name: Upload image build reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pccs-image-build
+          path: service/test-reports/
+          if-no-files-found: warn
+          retention-days: 14
