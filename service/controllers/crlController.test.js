@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 
 class TestContext extends ControllerTestContext {
     constructor() {
@@ -74,7 +74,7 @@ describe('crlController', () => {
 
             await assert.rejects(
                 () => target.getCrl(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.crlService.getCrl.notCalled).to.be.true;
@@ -87,7 +87,7 @@ describe('crlController', () => {
 
             await assert.rejects(
                 () => target.getCrl(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.crlService.getCrl.notCalled).to.be.true;
@@ -109,7 +109,7 @@ describe('crlController', () => {
 
                 await assert.rejects(
                     () => target.getCrl(ctx.getRequest(), ctx.response, ctx.next),
-                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
                 );
 
                 expect(ctx.crlService.getCrl.notCalled).to.be.true;
@@ -133,7 +133,7 @@ describe('crlController', () => {
 
                 await assert.rejects(
                     () => target.getCrl(ctx.getRequest(), ctx.response, ctx.next),
-                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
                 );
 
                 expect(ctx.crlService.getCrl.notCalled).to.be.true;

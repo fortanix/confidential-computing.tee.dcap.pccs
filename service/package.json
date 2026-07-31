@@ -1,6 +1,6 @@
 {
-  "name": "PCCS",
-  "description": "Provisioning Certificate Caching Service",
+  "name": "CCS",
+  "description": "Collateral Caching Service",
   "version": "1.27.0",
   "type": "module",
   "dependencies": {
@@ -46,7 +46,7 @@
     "uuid": "^11.1.1"
   },
   "scripts": {
-    "start": "cross-env NODE_ENV=production node pccs_server.js",
+    "start": "cross-env NODE_ENV=production node ccs_server.js",
     "test": "mocha",
     "eslint": "eslint",
     "eslintFix": "eslint --fix"

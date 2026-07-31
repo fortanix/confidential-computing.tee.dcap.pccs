@@ -28,8 +28,8 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import PccsError from '../../utils/PccsError.js';
-import PccsStatus from '../../constants/pccs_status_code.js';
+import CcsError from '../../utils/CcsError.js';
+import CcsStatus from '../../constants/ccs_status_code.js';
 import Constants from '../../constants/index.js';
 import logger from '../../utils/Logger.js';
 import X509 from '../../x509/x509.js';
@@ -53,7 +53,7 @@ async function getPckServerResponse(platform_manifest, enc_ppid, pceid) {
         return pcsClient.getCertsWithManifest(platform_manifest, pceid);
     } else if (enc_ppid && enc_ppid.match(/^0+$/)) {
         logger.error('Encrypted ppid is all zeros.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     } else {
         return pcsClient.getCerts(enc_ppid, pceid);
     }
@@ -70,7 +70,7 @@ function getFmspcAndCaType(pck_server_res) {
     let ca_type = pcsClient.getHeaderValue(pck_server_res.headers, Constants.SGX_PCK_CERTIFICATE_CA_TYPE);
     if (!fmspc || !ca_type) {
         logger.error('The server response doesn\'t include fmspc or ca.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     fmspc = fmspc.toUpperCase();
     ca_type = ca_type.toUpperCase();
@@ -100,7 +100,7 @@ function parsePckServerResponseBody(body) {
         return JSON.parse(body);
     } else {
         logger.error('Unrecognized server response.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 }
 
@@ -112,7 +112,7 @@ async function fetchTcbInfo(fmspc) {
 
     if (!tcbInfos.sgx_standard) {
         logger.error('The TCB info doesn\'t include standard update type.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     // Fetch TDX TCB info if applicable
@@ -152,13 +152,13 @@ export async function getPckCertFromPCS(
 ) {
     if (!enc_ppid && !platform_manifest) {
         logger.error('Missing encrypted ppid or platform manifest.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     const pck_server_res = await getPckServerResponse(platform_manifest, enc_ppid, pceid);
     // check HTTP status
     if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     // PCK certificate issuer chain in response header
@@ -187,7 +187,7 @@ export async function getPckCertFromPCS(
 
     if (pckcerts_valid.length === 0) {
         logger.error('No valid PCK certificates in the response.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const { fmspc, ca_type } = getFmspcAndCaType(pck_server_res);
@@ -223,7 +223,7 @@ export async function getPckCertFromPCS(
             try {
                 return [platform_tcb, selectBestPckCert(platform_tcb.cpu_svn, platform_tcb.pce_svn, platform_tcb.pce_id, pckcerts_valid, tcbInfoObj)];
             } catch {
-                throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+                throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
             }
         });
         await Promise.all(bestPckCertsPerPlatform.map(async([platform_tcb, selectedPckCert]) =>
@@ -245,7 +245,7 @@ export async function getPckCertFromPCS(
     try {
         selectedPckCert = selectBestPckCert(cpusvn, pcesvn, pceid, pckcerts_valid, tcbInfoObj);
     } catch {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     // create an entry for the new TCB level unless it's LAZY mode and
@@ -274,7 +274,7 @@ export async function getPckCrlFromPCS(ca) {
     const pck_server_res = await pcsClient.getPckCrl(ca);
 
     if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const crl = pck_server_res.rawBody;
@@ -304,7 +304,7 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
     const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type);
 
     if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const result = {
@@ -336,7 +336,7 @@ export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type
     const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type);
 
     if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     await sequelize.transaction(async() => {
@@ -399,12 +399,12 @@ export async function getRootCACrlFromPCS(rootcaParam) {
         if (!x509.parseCert(decodeURIComponent(rootca.cert)) || !x509.cdpUri) {
             // Certificate is invalid
             logger.error('Invalid PCS certificate.');
-            throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+            throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
         }
 
         if (!appUtil.isValidCrlUri(x509.cdpUri)) {
             logger.error('Invalid CDP URI.');
-            throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+            throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
         }
 
         rootca.crl = await pcsClient.getFileFromUrl(x509.cdpUri);
@@ -422,7 +422,7 @@ export async function getRootCACrlFromPCS(rootcaParam) {
 export async function getCrlFromPCS(uri) {
     if (!appUtil.isValidCrlUri(uri)) {
         logger.error('Invalid CRL URI.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     const crl = await pcsClient.getFileFromUrl(uri);
 

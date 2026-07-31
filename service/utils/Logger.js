@@ -40,7 +40,7 @@ const scriptDirname = path.dirname(fileURLToPath(import.meta.url));
 const { createLogger, format, transports } = winston;
 const { combine, timestamp, printf } = format;
 
-export const loggerNamespace = clshooked.createNamespace('pccs-logger-namespace');
+export const loggerNamespace = clshooked.createNamespace('ccs-logger-namespace');
 
 export function formatLogMessage(tokens, req, res) {
     const url = tokens.url(req, res);
@@ -52,7 +52,7 @@ export function formatLogMessage(tokens, req, res) {
 const options = {
     file: {
         level:            Config.has('LogLevel') ? Config.get('LogLevel') : 'info',
-        filename:         path.join(scriptDirname, '../logs/pccs_server.log'),
+        filename:         path.join(scriptDirname, '../logs/ccs_server.log'),
         handleExceptions: true,
         json:             false,
         colorize:         true,

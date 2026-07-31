@@ -30,8 +30,8 @@
  */
 import Config from 'config';
 import Crypto from 'crypto';
-import PccsStatus from '../constants/pccs_status_code.js';
-import PccsError from '../utils/PccsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
 import logger from '../utils/Logger.js';
 
 const SHA512_HEX_REGEX = /^[0-9a-fA-F]{128}$/;
@@ -55,7 +55,7 @@ export function validateTokenHashes() {
 export function validateUser(req, res, next) {
     const CONFIG_TOKEN_KEY = 'UserTokenHash';
     if (!Config.has(CONFIG_TOKEN_KEY)) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+        throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
     }
     const HTTP_HEADER_USER_TOKEN = 'user-token';
     const token = req.headers[HTTP_HEADER_USER_TOKEN];
@@ -66,19 +66,19 @@ export function validateUser(req, res, next) {
         const expectedTokenBuffer = Buffer.from(Config.get(CONFIG_TOKEN_KEY), 'hex');
 
         if (userTokenBuffer.length !== expectedTokenBuffer.length || !Crypto.timingSafeEqual(userTokenBuffer, expectedTokenBuffer)) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+            throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
         } else {
             next();
         }
     } else {
-        throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+        throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
     }
 }
 
 export function validateAdmin(req, res, next) {
     const CONFIG_TOKEN_KEY = 'AdminTokenHash';
     if (!Config.has(CONFIG_TOKEN_KEY)) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+        throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
     }
     const HTTP_HEADER_ADMIN_TOKEN = 'admin-token';
     const token = req.headers[HTTP_HEADER_ADMIN_TOKEN];
@@ -89,11 +89,11 @@ export function validateAdmin(req, res, next) {
         const expectedTokenBuffer = Buffer.from(Config.get(CONFIG_TOKEN_KEY), 'hex');
 
         if (adminTokenBuffer.length !== expectedTokenBuffer.length || !Crypto.timingSafeEqual(adminTokenBuffer, expectedTokenBuffer)) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+            throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
         } else {
             next();
         }
     } else {
-        throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+        throw new CcsError(CcsStatus.CCS_STATUS_UNAUTHORIZED);
     }
 }

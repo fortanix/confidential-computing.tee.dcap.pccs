@@ -47,7 +47,7 @@ import AppraisalPolicy from './appraisal_policy.js';
 import mysqlPromise from 'mysql2/promise.js';
 import clshooked from 'cls-hooked';
 
-const db_namespace = clshooked.createNamespace('pccs-db-namespace');
+const db_namespace = clshooked.createNamespace('ccs-db-namespace');
 Sequelize.useCLS(db_namespace);
 
 // get config options for ssl

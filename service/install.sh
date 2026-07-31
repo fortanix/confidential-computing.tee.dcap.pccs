@@ -69,7 +69,7 @@ function checkDependencies() {
 }
 
 function promptDbMigration() {
-    echo -e "${YELLOW}Warning: If you are upgrading PCCS from an old release, the existing cache database will be migrated automatically. ${NC} "
+    echo -e "${YELLOW}Warning: If you are upgrading CCS from an old release, the existing cache database will be migrated automatically. ${NC} "
     echo -e "${YELLOW}         It's strongly recommended to backup your existing cache database first and then continue the installation. ${NC} "
     while :
     do
@@ -174,7 +174,7 @@ fi
 
 while :
 do
-    read -p "Do you want to configure PCCS now? (Y/N) :" doconfig
+    read -p "Do you want to configure CCS now? (Y/N) :" doconfig
     if [[ "$doconfig" == "Y" || "$doconfig" == "y" ]]
     then
         break
@@ -207,7 +207,7 @@ done
 #Ask whether service should be available locally or externally
 while :
 do
-    read -p "Set the PCCS service to accept local connections only? [Y] (Y/N) :" local_only
+    read -p "Set the CCS service to accept local connections only? [Y] (Y/N) :" local_only
     if [[ -z $local_only  || "$local_only" == "Y" || "$local_only" == "y" ]]
     then
         local_only="Y"
@@ -266,7 +266,7 @@ while [ "$admin_pass_set" == false ]
 do
     while test "$admintoken1" == ""
     do
-        read -s -p "Set PCCS server administrator password:" admintoken1
+        read -s -p "Set CCS server administrator password:" admintoken1
         printf "\n"
         if [ ! -t 0 ] # non-interactive terminal
         then
@@ -325,7 +325,7 @@ while [ "$user_pass_set" == false ]
 do
     while test "$usertoken1" == ""
     do
-        read -s -p "Set PCCS server user password:" usertoken1
+        read -s -p "Set CCS server user password:" usertoken1
         printf "\n"
         if [ ! -t 0 ] # non-interactive terminal
         then
@@ -380,7 +380,7 @@ then
     genkey=""
     while [ "$genkey" == "" ]
     do
-        read -p "Do you want to generate a self-signed CA certificate and an HTTPS certificate for PCCS? (for development/testing only) [Y] (Y/N) :" genkey
+        read -p "Do you want to generate a self-signed CA certificate and an HTTPS certificate for CCS? (for development/testing only) [Y] (Y/N) :" genkey
         if [[ -z "$genkey" ||  "$genkey" == "Y" || "$genkey" == "y" ]]
         then
             if [ ! -d ssl_key  ];then
@@ -388,26 +388,26 @@ then
             fi
 
             # Generate a dedicated CA key (with restricted permissions) and a self-signed CA certificate (valid 10 years).
-            # This CA is used solely to sign the PCCS server certificate below.
-            # The CA certificate (ssl_key/ca.crt) is what clients must trust, e.g. via pccsadmin --ca ssl_key/ca.crt, to verify the PCCS server's identity.
+            # This CA is used solely to sign the CCS server certificate below.
+            # The CA certificate (ssl_key/ca.crt) is what clients must trust, e.g. via ccsadmin --ca ssl_key/ca.crt, to verify the CCS server's identity.
             openssl genrsa -out ssl_key/ca.key 2048
             chmod 600 ssl_key/ca.key
             openssl req -new -x509 -days 3650 -key ssl_key/ca.key \
                 -out ssl_key/ca.crt \
-                -subj "/CN=PCCS CA (self-signed)" \
+                -subj "/CN=CCS CA (self-signed)" \
                 -addext "basicConstraints=critical,CA:TRUE" \
                 -addext "keyUsage=critical,keyCertSign,cRLSign"
 
             # Prompt for the hostname or IP the server will be reachable at.
             # This value is placed in the Subject Alternative Name (SAN) extension, which TLS clients use to verify the server identity.
-            read -p "Set PCCS server address for the HTTPS certificate [localhost] :" san_value
+            read -p "Set CCS server address for the HTTPS certificate [localhost] :" san_value
             if [ -z "$san_value" ]; then
                 san_value="localhost"
             fi
 
             # Validate san_value contains only characters safe for embedding in a CNF file.
             # Brackets are allowed to support bracketed IPv6 (e.g. [::1]).
-            # This prevents newline or special-character injection into pccs_cert_ext.cnf.
+            # This prevents newline or special-character injection into ccs_cert_ext.cnf.
             if [[ ! "$san_value" =~ ^[]a-zA-Z0-9.:_[-]+$ ]]; then
                 echo "Error: Invalid server address '$san_value'."
                 echo "Only alphanumeric characters, dots, colons, brackets, hyphens, and underscores are allowed."
@@ -466,7 +466,7 @@ then
             #   subjectAltName  - hostname/IP that the cert is valid for
             #   basicConstraints=CA:FALSE - marks this as a leaf cert, not a CA
             #   keyUsage=digitalSignature - restricts the key to TLS handshake signing
-            cat > ssl_key/pccs_cert_ext.cnf <<EOF
+            cat > ssl_key/ccs_cert_ext.cnf <<EOF
 [extensions]
 subjectAltName=${san_type}:${san_value}
 basicConstraints=critical,CA:FALSE
@@ -474,23 +474,23 @@ keyUsage=critical,digitalSignature
 EOF
 
             # Register a trap to remove OpenSSL extensions config if the script exits unexpectedly.
-            trap 'rm -f ssl_key/pccs_cert_ext.cnf' EXIT
+            trap 'rm -f ssl_key/ccs_cert_ext.cnf' EXIT
 
             # Generate the server's private key.
             openssl genrsa -out ssl_key/private.pem 2048
 
             # Create a Certificate Signing Request (CSR) from the server's private key.
-            openssl req -new -key ssl_key/private.pem -out ssl_key/csr.pem -subj "/CN=PCCS Server"
+            openssl req -new -key ssl_key/private.pem -out ssl_key/csr.pem -subj "/CN=CCS Server"
 
             # Have the CA sign the CSR, producing the server certificate (valid 1 year) with the extensions above.
-            # The resulting ssl_key/file.crt is the certificate the PCCS presents to clients.
+            # The resulting ssl_key/file.crt is the certificate the CCS presents to clients.
             # It is signed by ssl_key/ca.crt, so clients that trust the CA will accept the server certificate.
             openssl x509 -req -days 365 -in ssl_key/csr.pem \
                 -CA ssl_key/ca.crt -CAkey ssl_key/ca.key -CAcreateserial \
-                -out ssl_key/file.crt -extfile ssl_key/pccs_cert_ext.cnf -extensions extensions
+                -out ssl_key/file.crt -extfile ssl_key/ccs_cert_ext.cnf -extensions extensions
 
             # Remove temporary files: the extensions config and the CA serial tracking file.
-            rm -f ssl_key/pccs_cert_ext.cnf ssl_key/ca.srl
+            rm -f ssl_key/ccs_cert_ext.cnf ssl_key/ca.srl
             trap - EXIT
             break
         elif [[ "$genkey" == "N" || "$genkey" == "n" ]]
@@ -501,5 +501,5 @@ EOF
         fi
     done
 else
-    echo -e "${YELLOW}You need to setup HTTPS key and cert for PCCS to work. For how-to please check README. ${NC} "
+    echo -e "${YELLOW}You need to setup HTTPS key and cert for CCS to work. For how-to please check README. ${NC} "
 fi

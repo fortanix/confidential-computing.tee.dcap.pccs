@@ -30,8 +30,8 @@
  */
 
 import { platformsRegService, platformsService, validatorService } from '../services/index.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 import logger from '../utils/Logger.js';
 import { sequelize } from '../dao/models/index.js';
@@ -47,8 +47,8 @@ export async function postPlatforms(req, res, next) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
-            .send(PccsStatus.PCCS_STATUS_SUCCESS[1]);
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
+            .send(CcsStatus.CCS_STATUS_SUCCESS[1]);
     } catch (err) {
         next(err);
     }
@@ -79,7 +79,7 @@ export async function getPlatforms(req, res, next) {
             let fmspc = req.query.source;
             if (fmspc.length < 2 || fmspc[0] !== '[' || fmspc[fmspc.length - 1] !== ']') {
                 logger.error(`Invalid fmspc : ${fmspc}`);
-                throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+                throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
             }
             fmspc = fmspc
                 .substring(1, fmspc.length - 1)
@@ -91,7 +91,7 @@ export async function getPlatforms(req, res, next) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .header(HTTP_HEADER_PLATFORM_COUNT, platformsJson.length)
             .send(platformsJson);
     } catch (err) {

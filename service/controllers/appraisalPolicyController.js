@@ -30,8 +30,8 @@
  */
 
 import { appraisalPolicyService, validatorService } from '../services/index.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import logger from '../utils/Logger.js';
 
 export async function putAppraisalPolicy(req, res, next) {
@@ -41,7 +41,7 @@ export async function putAppraisalPolicy(req, res, next) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .send(id);
     } catch (err) {
         next(err);
@@ -55,12 +55,12 @@ export async function getAppraisalPolicy(req, res, next) {
         const policies = await appraisalPolicyService.getDefaultAppraisalPolicies(fmspc);
         if (policies.length === 0) {
             logger.error(`No default appraisal policy found for fmspc : ${fmspc}`);
-            throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+            throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
         }
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .send(policies.map(policyRecord => policyRecord.policy).join(','));
     } catch (err) {
         next(err);

@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 
 class TestContext extends ControllerTestContext {
@@ -71,7 +71,7 @@ describe('identityController', () => {
                 await getIdentityFn(target)(ctx.getRequest(), ctx.response, ctx.next);
 
                 expect(ctx.identityService.getEnclaveIdentity.calledWith(enclaveId, ctx.version, 'EARLY')).to.be.true;
-                expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+                expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
                 expect(
                     ctx.response.header.calledWith(Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN, ctx.issuerChain)
                 ).to.be.true;
@@ -107,7 +107,7 @@ describe('identityController', () => {
 
             await assert.rejects(
                 () => target.getEcdsaQeIdentity(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.identityService.getEnclaveIdentity.notCalled).to.be.true;
