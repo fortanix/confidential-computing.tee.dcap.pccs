@@ -1,7 +1,7 @@
 {
   "name": "CCS",
   "description": "Collateral Caching Service",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "type": "module",
   "dependencies": {
     "@fidm/x509": "^1.2.1",
@@ -50,5 +50,8 @@
     "test": "mocha",
     "eslint": "eslint",
     "eslintFix": "eslint --fix"
+  },
+  "allowScripts": {
+    "sqlite3@5.1.7": true
   }
 }
