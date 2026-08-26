@@ -35,7 +35,7 @@ import Config from 'config';
 import morgan from 'morgan';
 import express from 'express';
 import logger, { formatLogMessage } from './utils/Logger.js';
-import node_schedule from 'node-schedule';
+import cron from 'node-cron';
 import body_parser from 'body-parser';
 import { sgxRouter, tdxRouter } from './routes/index.js';
 import * as fs from 'fs';
@@ -165,8 +165,8 @@ function startHttpsServer() {
 
     try {
         const httpsServer = https.createServer(options, app);
-        httpsServer.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 15) * 1000;
-        httpsServer.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 10) * 1000;
+        httpsServer.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 60) * 1000;
+        httpsServer.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 30) * 1000;
         httpsServer.keepAliveTimeout = (Config.has('KeepAliveTimeoutSeconds') ? Config.get('KeepAliveTimeoutSeconds') : 60) * 1000;
         httpsServer.listen(Config.get('HTTPS_PORT'), Config.get('hosts'), () => {
             logger.info(`HTTPS Server is running on: https://localhost:${Config.get('HTTPS_PORT')}`);
@@ -189,7 +189,7 @@ function startHttpsServer() {
 }
 
 function scheduleRefreshJob() {
-    node_schedule.scheduleJob(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
+    cron.schedule(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
 }
 
 async function main() {

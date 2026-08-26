@@ -28,6 +28,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+import Config from 'config';
 import CcsError from '../utils/CcsError.js';
 import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
@@ -44,15 +45,33 @@ import * as pcsCertificatesDao from '../dao/pcsCertificatesDao.js';
 import * as crlCacheDao from '../dao/crlCacheDao.js';
 import * as pcsClient from '../pcs_client/pcs_client.js';
 import * as appUtil from '../utils/apputil.js';
+import { getBodyBuffer } from '../utils/responseBody.js';
 import { sequelize } from '../dao/models/index.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
 
-// Refresh the enclave_identities table
-async function refreshEnclaveIdentities() {
+function useSequentialDbWrites() {
+    return Config.get('DB_CONFIG') === 'sqlite';
+}
+
+async function runDbWriteOperations(writeOperations) {
+    if (useSequentialDbWrites()) {
+        for (const writeOperation of writeOperations) {
+            // eslint-disable-next-line no-await-in-loop
+            await writeOperation();
+        }
+        return;
+    }
+
+    await Promise.all(writeOperations.map(writeOperation => writeOperation()));
+}
+
+
+// Fetch enclave identities from PCS (HTTP only, no DB writes)
+async function fetchEnclaveIdentities() {
     if (global.PCS_VERSION === 3) {
         logger.warn('PCS API version 3 is no longer available. Enclave Identities downloaded using API version 3 will not be refreshed.');
-        return;
+        return [];
     }
     const enclaveIdList = [
         [Constants.QE_IDENTITY_ID, 4],
@@ -60,63 +79,71 @@ async function refreshEnclaveIdentities() {
         [Constants.TDQE_IDENTITY_ID, 4],
     ];
     const updateTypes = [Constants.UPDATE_TYPE_STANDARD, Constants.UPDATE_TYPE_EARLY];
-    const pckServerResponses = await Promise.all(enclaveIdList
-        .flatMap(enclaveId => updateTypes.map(updateType => [enclaveId, updateType]))
-        .map(async([enclaveId, updateType]) => {
+    // Fetch data from PCS in parallel
+    const retrievedEnclaveIdentities = await Promise.all(enclaveIdList
+        .flatMap(([enclaveId, version]) => updateTypes.map(updateType => [enclaveId, version, updateType]))
+        .map(async([enclaveId, version, updateType]) => {
             const pckServerRes = await pcsClient.getEnclaveIdentity(
-                enclaveId[0],
-                enclaveId[1],
+                enclaveId,
+                version,
                 updateType
             );
-            if (pckServerRes.statusCode === Constants.HTTP_SUCCESS) {
-                // Then refresh cache DB
-                await enclaveIdentityDao.upsertEnclaveIdentity(
-                    enclaveId[0],
-                    pckServerRes.rawBody,
-                    enclaveId[1],
-                    updateType
-                );
-            } else {
-                // Let it continue even though the collateral doesn't exist
-                logger.debug("Couldn't get enclave identity for (id:%d,version:%d,type:%s)", enclaveId[0], enclaveId[1], updateType);
-            }
-            return pckServerRes;
+            return {
+                enclaveId,
+                version,
+                updateType,
+                statusCode: pckServerRes.statusCode,
+                identity:   getBodyBuffer(pckServerRes),
+                headers:    pckServerRes.headers
+            };
         })
     );
-    const somePositivePckServerResponse = pckServerResponses.find(pckServerRes => pckServerRes.statusCode === Constants.HTTP_SUCCESS);
-    if (somePositivePckServerResponse === undefined) {
-        return;
-    }
-    await pcsCertificatesDao.upsertEnclaveIdentityIssuerChain(
-        pcsClient.getHeaderValue(
-            somePositivePckServerResponse.headers,
-            Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN
-        )
-    );
+    return retrievedEnclaveIdentities;
 }
 
-// Refresh all PCK certs in the database
-async function refreshAllPckcerts(fmspcArray) {
-    const platformTcbs = await platformTcbsDao.getPlatformTcbs(fmspcArray);
-
-    const platformTcbsGrouped = platformTcbs.reduce((acc, tcb) => { //TODO: replace with Object.groupBy when we support Node 21+
-        const key = `${tcb.qe_id}_${tcb.pce_id}`;
-        if (!acc[key]) {
-            acc[key] = [];
+// Persist enclave identities to DB (DB only, called within transaction)
+async function persistEnclaveIdentities(retrievedEnclaveIdentities) {
+    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, statusCode, identity }) => async() => {
+        if (statusCode === Constants.HTTP_SUCCESS && identity !== null) {
+            await enclaveIdentityDao.upsertEnclaveIdentity(
+                enclaveId,
+                identity,
+                version,
+                updateType
+            );
+            return;
         }
-        acc[key].push(tcb);
-        return acc;
-    }, {});
-    await Promise.all(Object.entries(platformTcbsGrouped).map(async kv => {
-        const platformTcbs = kv[1];
-        const qeId = platformTcbs[0].qe_id;
-        const pceId = platformTcbs[0].pce_id;
+
+        logger.debug("Couldn't get enclave identity for (id:%d,version:%d,type:%s)", enclaveId, version, updateType);
+    }));
+
+    const somePositivePckServerResponse = retrievedEnclaveIdentities.find(pckServerRes => pckServerRes.statusCode === Constants.HTTP_SUCCESS && pckServerRes.identity !== null);
+    if (somePositivePckServerResponse !== undefined) {
+        await pcsCertificatesDao.upsertEnclaveIdentityIssuerChain(
+            pcsClient.getHeaderValue(
+                somePositivePckServerResponse.headers,
+                Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN
+            )
+        );
+    }
+}
+
+// Fetch PCK certs from PCS (HTTP only, no DB writes)
+async function fetchAllPckcerts(fmspcCsv) {
+    const allPlatformTcbs = await platformTcbsDao.getPlatformTcbs(fmspcCsv);
+
+    const platformTcbsGroups = Object.groupBy(
+        allPlatformTcbs,
+        tcb => `${tcb.qe_id}_${tcb.pce_id}`
+    );
+
+    const refreshItems = await Promise.all(Object.entries(platformTcbsGroups).map(async kv => {
+        const currentPlatformTcbsGroup = kv[1];
+        const qeId = currentPlatformTcbsGroup[0].qe_id;
+        const pceId = currentPlatformTcbsGroup[0].pce_id;
 
         // new platform detected
-        const platform = await platformsDao.getPlatform(
-            qeId,
-            pceId
-        );
+        const platform = await platformsDao.getPlatform(qeId, pceId);
         // contact Intel PCS server to get PCK certs
         const pckServerCertsRes = platform.platform_manifest ?
             await pcsClient.getCertsWithManifest(
@@ -146,45 +173,41 @@ async function refreshAllPckcerts(fmspcArray) {
         }
 
         // Get fmspc and ca type from response header
-        const fmspc = pcsClient
-            .getHeaderValue(pckServerCertsRes.headers, Constants.SGX_FMSPC)
-            .toUpperCase();
-        const caType = pcsClient
-            .getHeaderValue(
-                pckServerCertsRes.headers,
-                Constants.SGX_PCK_CERTIFICATE_CA_TYPE
-            )
-            .toUpperCase();
+        const fmspcHeader = pcsClient.getHeaderValue(
+            pckServerCertsRes.headers,
+            Constants.SGX_FMSPC
+        );
+        const caTypeHeader = pcsClient.getHeaderValue(
+            pckServerCertsRes.headers,
+            Constants.SGX_PCK_CERTIFICATE_CA_TYPE
+        );
 
-        if (fmspc === null || caType === null) {
+        if (typeof fmspcHeader !== 'string' || typeof caTypeHeader !== 'string') {
             logger.error("The response header doesn't include fmspc or ca.");
             throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
         }
 
-        // get tcbinfo for this fmspc
+        const fmspc = fmspcHeader.toUpperCase();
+        const caType = caTypeHeader.toUpperCase();
 
-        const pckServerTcbRes = await pcsClient.getTcb(Constants.PROD_TYPE_SGX, fmspc, global.PCS_VERSION, Constants.UPDATE_TYPE_EARLY);
+        // get tcbinfo for this fmspc
+        const pckServerTcbRes = await pcsClient.getTcb(
+            Constants.PROD_TYPE_SGX,
+            fmspc,
+            global.PCS_VERSION,
+            Constants.UPDATE_TYPE_EARLY
+        );
         if (pckServerTcbRes.statusCode !== Constants.HTTP_SUCCESS) {
             throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
         }
+
         const tcbInfoObj = JSON.parse(pckServerTcbRes.body).tcbInfo;
+        const decodedCerts = pckcerts.map(cert => ({
+            tcbm:     cert.tcbm.toUpperCase(),
+            pck_cert: decodeURIComponent(cert.cert)
+        }));
 
-        // flush and add PCK certs
-        await pckcertDao.deleteCerts(qeId, pceId);
-        await Promise.all(pckcerts.map(async pckcert => await pckcertDao.upsertPckCert(
-            qeId,
-            pceId,
-            pckcert.tcbm,
-            decodeURIComponent(pckcert.cert)
-        )));
-
-        await Promise.all(platformTcbs.map(async platformTcb => {
-            // unescape certificates
-            const decodedCerts = pckcerts.map(cert => ({
-                tcbm:     cert.tcbm.toUpperCase(),
-                pck_cert: decodeURIComponent(cert.cert)
-            }));
-
+        const selectedPlatformTcbs = currentPlatformTcbsGroup.map(platformTcb => {
             // get the best cert
             let selectedPckCert;
             try {
@@ -193,53 +216,103 @@ async function refreshAllPckcerts(fmspcArray) {
                 throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
             }
 
-            await platformTcbsDao.upsertPlatformTcbs(
-                platformTcb.qe_id,
-                platformTcb.pce_id,
-                platformTcb.cpu_svn,
-                platformTcb.pce_svn,
-                selectedPckCert.tcbm
-            );
-        }));
+            return {
+                platformTcb,
+                selectedTcbm: selectedPckCert.tcbm,
+            };
+        });
 
-        if (pckCertChain) {
-            // Update pckCertChain
-            await pckCertchainDao.upsertPckCertchain(caType);
-            // Update or insert SGX_PCK_CERTIFICATE_ISSUER_CHAIN
-            await pcsCertificatesDao.upsertPckCertificateIssuerChain(
-                caType,
-                pckCertChain
-            );
+        return {
+            qeId,
+            pceId,
+            caType,
+            pckCertChain,
+            pckcerts,
+            selectedPlatformTcbs,
+        };
+    }));
+    return refreshItems;
+}
+
+// Persist PCK certs to DB (DB only, called within transaction)
+async function persistAllPckcerts(refreshItems) {
+    await runDbWriteOperations(refreshItems.map(item => async() => {
+        await pckcertDao.deleteCerts(item.qeId, item.pceId);
+
+        const pckCertWriteOperations = item.pckcerts.map(pckcert => async() => await pckcertDao.upsertPckCert(
+            item.qeId,
+            item.pceId,
+            pckcert.tcbm,
+            decodeURIComponent(pckcert.cert)
+        ));
+
+        const platformTcbWriteOperations = item.selectedPlatformTcbs.map(selected => async() => await platformTcbsDao.upsertPlatformTcbs(
+            selected.platformTcb.qe_id,
+            selected.platformTcb.pce_id,
+            selected.platformTcb.cpu_svn,
+            selected.platformTcb.pce_svn,
+            selected.selectedTcbm
+        ));
+
+        const chainWriteOperations = [];
+        if (item.pckCertChain) {
+            chainWriteOperations.push(async() => {
+                await pckCertchainDao.upsertPckCertchain(item.caType);
+                await pcsCertificatesDao.upsertPckCertificateIssuerChain(
+                    item.caType,
+                    item.pckCertChain
+                );
+            });
         }
+
+        const writeOperations = [
+            ...pckCertWriteOperations,
+            ...platformTcbWriteOperations,
+            ...chainWriteOperations,
+        ];
+
+        await runDbWriteOperations(writeOperations);
     }));
 }
 
-// Refresh the crl record for the specified ca
-async function refreshOneCrl(ca) {
+// Fetch one PCK CRL from PCS (HTTP only, no DB writes)
+async function fetchOneCrl(ca) {
     const pckServerRes = await pcsClient.getPckCrl(ca);
-    if (pckServerRes.statusCode === Constants.HTTP_SUCCESS) {
-        // Then refresh cache DB
-        await pckcrlDao.upsertPckCrl(ca, pckServerRes.rawBody);
-        await pcsCertificatesDao.upsertPckCrlCertchain(
+    const crl = getBodyBuffer(pckServerRes);
+    if (pckServerRes.statusCode === Constants.HTTP_SUCCESS && crl !== null) {
+        return {
             ca,
-            pcsClient.getHeaderValue(
-                pckServerRes.headers,
-                Constants.SGX_PCK_CRL_ISSUER_CHAIN
-            )
-        );
+            statusCode: pckServerRes.statusCode,
+            crl,
+            headers:    pckServerRes.headers
+        };
     } else {
         throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
     }
 }
 
-// Refresh all PCK CRLs
-async function refreshPckCrls() {
+// Fetch all PCK CRLs from PCS (HTTP only, no DB writes)
+async function fetchAllPckCrls() {
     const pckcrls = await pckcrlDao.getAllPckCrls();
-    await Promise.all(pckcrls.map(async pckcrl => await refreshOneCrl(pckcrl.ca)));
+    return Promise.all(pckcrls.map(pckcrl => fetchOneCrl(pckcrl.ca)));
 }
 
-// Refresh root CA CRL
-async function refreshRootcaCrl() {
+// Persist PCK CRLs to DB (DB only, called within transaction)
+async function persistAllPckCrls(crlResults) {
+    await runDbWriteOperations(crlResults.map(({ ca, crl, headers }) => async() => {
+        await pckcrlDao.upsertPckCrl(ca, crl);
+        await pcsCertificatesDao.upsertPckCrlCertchain(
+            ca,
+            pcsClient.getHeaderValue(
+                headers,
+                Constants.SGX_PCK_CRL_ISSUER_CHAIN
+            )
+        );
+    }));
+}
+
+// Fetch root CA CRL from URL (HTTP only, no DB writes)
+async function fetchRootcaCrl() {
     const rootca = await pcsCertificatesDao.getCertificateById(
         Constants.ROOT_CERT_ID
     );
@@ -258,62 +331,49 @@ async function refreshRootcaCrl() {
         throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 
-    rootca.crl = await pcsClient.getFileFromUrl(x509.cdpUri);
+    const crl = await pcsClient.getFileFromUrl(x509.cdpUri);
+    return { id: rootca.id, crl };
+}
 
+// Persist root CA CRL to DB (DB only, called within transaction)
+async function persistRootcaCrl(rootcaCrlData) {
     await pcsCertificatesDao.upsertPcsCertificates({
-        id:  rootca.id,
-        crl: rootca.crl,
+        id:  rootcaCrlData.id,
+        crl: rootcaCrlData.crl,
     });
 }
 
-// Refresh crl_cache table
-async function refreshCachedCrls() {
+// Fetch CRL cache entries from URLs (HTTP only, no DB writes)
+async function fetchCachedCrls() {
     const crlCaches = await crlCacheDao.getAllCrls();
-    await Promise.all(crlCaches.map(async crlCache => {
+    const crls = await Promise.all(crlCaches.map(async crlCache => {
         // refresh each crl
         if (!appUtil.isValidCrlUri(crlCache.cdp_url)) {
             logger.error('Invalid CDP URI.');
-            return false;
+            return [false, false];
         }
         const crl = await pcsClient.getFileFromUrl(crlCache.cdp_url);
-        return await crlCacheDao.upsertCrl(crlCache.cdp_url, crl);
+        return [crlCache.cdp_url, crl];
     }));
+    return crls;
 }
 
-// Refresh the TCB info for the specified fmspc value
-async function refreshOneTcb(fmspc, type, version, updateType) {
-    if (version === 3) {
-        return;
-    }
-
-    const pckServerRes = await pcsClient.getTcb(type, fmspc, version, updateType);
-    if (pckServerRes.statusCode === Constants.HTTP_SUCCESS) {
-        // Then refresh cache DB
-        await fmspcTcbDao.upsertFmspcTcb({
-            type,
-            fmspc,
-            version,
-            update_type: updateType,
-            tcbinfo:     pckServerRes.rawBody,
-        });
-        // update or insert certificate chain
-        await pcsCertificatesDao.upsertTcbInfoIssuerChain(
-            pcsClient.getHeaderValue(
-                pckServerRes.headers,
-                appUtil.getTcbInfoIssuerChainName(version)
-            )
-        );
-    } else {
-        logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
-        throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
-    }
+// Persist CRL cache entries to DB (DB only, called within transaction)
+async function persistCachedCrls(crls) {
+    await runDbWriteOperations(crls
+        .filter(([cdpUrl, crl]) => cdpUrl && crl)
+        .map(([cdpUrl, crl]) => async() => {
+            await crlCacheDao.upsertCrl(cdpUrl, crl);
+        }));
 }
 
-// Refresh all TCBs in the table
-async function refreshAllTcbs() {
-    // hotfix : delete type==null records
+// Cleanup invalid TCBs (delete type==null records) - done early to avoid blocking fetch phase
+async function cleanupInvalidTcbs() {
     await fmspcTcbDao.deleteInvalidTcbs();
+}
 
+// Fetch TCB infos from PCS (HTTP only, no DB writes)
+async function fetchAllTcbs() {
     const tcbs = await fmspcTcbDao.getAllTcbs();
     if (tcbs.findIndex(tcb => tcb.version === 3) > -1) {
         logger.warn('PCS API version 3 is no longer available. TCB Info collateral downloaded from API version 3 is deprecated and will not be refreshed.');
@@ -324,77 +384,154 @@ async function refreshAllTcbs() {
         logger.warn('');
     }
 
-    await Promise.all(tcbs
+    const downloadedTcbInfos = await Promise.all(tcbs
         .filter(tcb => tcb.version > 3)
-        .map(async tcb => refreshOneTcb(tcb.fmspc, tcb.type, tcb.version, tcb.update_type)));
+        .map(async tcb => {
+            const pckServerRes = await pcsClient.getTcb(
+                tcb.type,
+                tcb.fmspc,
+                tcb.version,
+                tcb.update_type
+            );
+            return {
+                type:        tcb.type,
+                fmspc:       tcb.fmspc,
+                version:     tcb.version,
+                update_type: tcb.update_type,
+                statusCode:  pckServerRes.statusCode,
+                tcbInfo:     getBodyBuffer(pckServerRes),
+                headers:     pckServerRes.headers
+            };
+        }));
+    return downloadedTcbInfos;
 }
+
+// Persist TCB infos to DB (DB only, called within transaction)
+async function persistAllTcbs(downloadedTcbInfos) {
+    await runDbWriteOperations(downloadedTcbInfos.map(({ type, fmspc, version, update_type, statusCode, tcbInfo, headers }) => async() => {
+        if (statusCode === Constants.HTTP_SUCCESS && tcbInfo !== null) {
+            await fmspcTcbDao.upsertFmspcTcb({
+                type,
+                fmspc,
+                version,
+                update_type,
+                tcbinfo: tcbInfo,
+            });
+
+            await pcsCertificatesDao.upsertTcbInfoIssuerChain(
+                pcsClient.getHeaderValue(
+                    headers,
+                    appUtil.getTcbInfoIssuerChainName(version)
+                )
+            );
+            return;
+        }
+
+        logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
+        throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
+    }));
+}
+
+// In-memory coalescing map: concurrent refreshes for the same (type, fmspc) share one Promise.
+// SQLite only allows one writer at a time - this prevents SQLITE_BUSY from parallel transactions.
+const activeRefreshes = new Map();
 
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
-    if (type === 'certs') {
-        if (global.PCS_VERSION > 3) {
-            await sequelize.transaction(async() => {
-                await refreshAllPckcerts(fmspc);
-            });
-        } else {
-            logger.warn('PCS API version 3 is no longer available. PCK certs downloaded using API version 3 will not be refreshed.');
-        }
-    } else {
-        if (global.PCS_VERSION > 3) {
-            await sequelize.transaction(async() => {
-                await refreshPckCrls();
-                await refreshAllTcbs();
-                await refreshEnclaveIdentities();
-            });
-        } else {
-            logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
-        }
-
-        await sequelize.transaction(async() => {
-            await refreshRootcaCrl();
-            await refreshCachedCrls();
-        });
+    const lockKey = `${type ?? 'collateral'}:${fmspc ?? '*'}`;
+    if (activeRefreshes.has(lockKey)) {
+        logger.info(`[refreshCache] Refresh for key=${lockKey} already in progress, awaiting shared result`);
+        return activeRefreshes.get(lockKey);
     }
+
+    const refreshPromise = (async() => {
+        try {
+            if (type === 'certs') {
+                if (global.PCS_VERSION > 3) {
+                // PHASE 1: Fetch data from HTTP (outside transaction)
+                    const fetchStart = Date.now();
+                    const pckCertItems = await fetchAllPckcerts(fmspc);
+                    logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
+
+                    // PHASE 2: Persist to DB (inside transaction)
+                    const persistStart = Date.now();
+                    await sequelize.transaction(async() => {
+                        await persistAllPckcerts(pckCertItems);
+                    });
+                    logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
+                } else {
+                    logger.warn('PCS API version 3 is no longer available. PCK certs downloaded using API version 3 will not be refreshed.');
+                }
+            } else {
+            // Cleanup invalid TCBs before starting fetch phase
+                await cleanupInvalidTcbs();
+
+                // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
+                const fetchStart = Date.now();
+                let pckCrlResults; let tcbResults; let enclaveResults;
+                if (global.PCS_VERSION > 3) {
+                    [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
+                        fetchAllPckCrls(),
+                        fetchAllTcbs(),
+                        fetchEnclaveIdentities(),
+                    ]);
+                } else {
+                    logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
+                }
+                const [rootcaCrlData, cachedCrlResults] = await Promise.all([
+                    fetchRootcaCrl(),
+                    fetchCachedCrls(),
+                ]);
+                logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
+
+                // PHASE 2: Persist all to DB in a single transaction
+                const persistStart = Date.now();
+                await sequelize.transaction(async() => {
+                    if (global.PCS_VERSION > 3) {
+                        await persistAllPckCrls(pckCrlResults);
+                        await persistAllTcbs(tcbResults);
+                        await persistEnclaveIdentities(enclaveResults);
+                    }
+                    await persistRootcaCrl(rootcaCrlData);
+                    await persistCachedCrls(cachedCrlResults);
+                });
+                logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
+            }
+        } finally {
+            activeRefreshes.delete(lockKey);
+        }
+    })();
+
+    activeRefreshes.set(lockKey, refreshPromise);
+    return refreshPromise;
 }
 
 // Schedule the refresh job in cron-style
-// # ┌───────────── minute (0 - 59)
-// # │ ┌───────────── hour (0 - 23)
-// # │ │ ┌───────────── day of the month (1 - 31)
-// # │ │ │ ┌───────────── month (1 - 12)
-// # │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
-// # │ │ │ │ │                                   7 is also Sunday on some systems)
-// # │ │ │ │ │
-// # │ │ │ │ │
-// # * * * * * command to execute
+// # ┌───────────── second (0 - 59)
+// # │ ┌───────────── minute (0 - 59)
+// # │ │ ┌───────────── hour (0 - 23)
+// # │ │ │ ┌───────────── day of the month (1 - 31)
+// # │ │ │ │ ┌───────────── month (1 - 12)
+// # │ │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
+// # │ │ │ │ │ │                                   7 is also Sunday on some systems)
+// # │ │ │ │ │ │
+// # │ │ │ │ │ │
+// # * * * * * * command to execute
 //
 
 export async function scheduledRefresh() {
+    if (!cachingModeManager.isRefreshable()) {
+        return;
+    }
     try {
-        if (!cachingModeManager.isRefreshable()) {
-            return;
-        }
-
-        if (global.PCS_VERSION > 3) {
-            await sequelize.transaction(async() => {
-                await refreshPckCrls();
-                await refreshAllTcbs();
-                await refreshEnclaveIdentities();
-            });
-        } else {
-            logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
-        }
-
-        await sequelize.transaction(async() => {
-            await refreshRootcaCrl();
-            await refreshCachedCrls();
-        });
-
+        // Reuse refreshCache with type='collateral' to benefit from coalescing lock
+        // and avoid duplicate code. Any non-'certs' type triggers the full CRL/TCB/identity refresh.
+        await refreshCache('collateral', undefined);
         logger.info('Scheduled cache refresh is completed successfully.');
-    } catch {
-        logger.error('Scheduled cache refresh failed.');
+    } catch (error) {
+        logger.error(`Scheduled cache refresh failed: ${error.message || error}`);
     }
 }

@@ -172,9 +172,11 @@ To start the service and check its status, see section [Manage the CCS service](
 - **`UserTokenHash`** - Sha512 hash of the user token for the CCS client user to register a platform. For example, PCK Cert ID retrieval tool will use the user token to send platform information to the CCS.
 - **`AdminTokenHash`** - Sha512 hash of the administrator token for the CCS administrator to perform a manual refresh of cached artifacts.
 - **`MaxRequestBodySize`** - Maximum allowed size of the request body. 2MB by default. You can use KB, MB, GB.
-- **`HeadersTimeoutSeconds`** - Maximum time in seconds to wait for the client to send complete HTTP headers. Default value is 10.
-- **`RequestTimeoutSeconds`** - Maximum time in seconds to wait for the client to send the entire request (headers + body). Default value is 15.
+- **`HeadersTimeoutSeconds`** - Maximum time in seconds to wait for the client to send complete HTTP headers. Default value is 30.
+- **`RequestTimeoutSeconds`** - Maximum time in seconds to wait for the client to send the entire request (headers + body). Default value is 60.
 - **`KeepAliveTimeoutSeconds`** - Maximum idle time in seconds on a keep-alive connection before it is closed. Default value is 60.
+- **`PcsRequestTimeoutSeconds`** - Timeout in seconds for outbound requests to Intel PCS. Default value is 16.
+- **`PcsMaxRetryCount`** - Maximum retry count for outbound requests to Intel PCS. Default value is 2.
 
 
 > [!NOTE]

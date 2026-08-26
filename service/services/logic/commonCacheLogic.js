@@ -44,6 +44,7 @@ import * as platformsDao from '../../dao/platformsDao.js';
 import * as crlCacheDao from '../../dao/crlCacheDao.js';
 import * as pcsClient from '../../pcs_client/pcs_client.js';
 import * as appUtil from '../../utils/apputil.js';
+import { getBodyBuffer, isSuccessfulResponseWithBody, parsePckServerResponseBody } from '../../utils/responseBody.js';
 import { sequelize } from '../../dao/models/index.js';
 import { cachingModeManager } from '../caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../../pckCertSelection/pckCertSelection.js';
@@ -79,9 +80,9 @@ function getFmspcAndCaType(pck_server_res) {
 
 async function getTcbInfo(type, fmspc, version, update_type) {
     const pckServerRes = await pcsClient.getTcb(type, fmspc, version, update_type);
-    if (pckServerRes.statusCode === Constants.HTTP_SUCCESS) {
+    if (isSuccessfulResponseWithBody(pckServerRes)) {
         return {
-            tcbinfo:              pckServerRes.rawBody,
+            tcbinfo:              getBodyBuffer(pckServerRes),
             tcbinfo_str:          pckServerRes.body,
             tcbinfo_issuer_chain: pcsClient.getHeaderValue(
                 pckServerRes.headers,
@@ -90,17 +91,6 @@ async function getTcbInfo(type, fmspc, version, update_type) {
         };
     } else {
         return null;
-    }
-}
-
-function parsePckServerResponseBody(body) {
-    if (typeof body === 'object') {
-        return body;
-    } else if (typeof body === 'string') {
-        return JSON.parse(body);
-    } else {
-        logger.error('Unrecognized server response.');
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 }
 
@@ -157,7 +147,7 @@ export async function getPckCertFromPCS(
 
     const pck_server_res = await getPckServerResponse(platform_manifest, enc_ppid, pceid);
     // check HTTP status
-    if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
+    if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
@@ -273,11 +263,11 @@ export async function getPckCertFromPCS(
 export async function getPckCrlFromPCS(ca) {
     const pck_server_res = await pcsClient.getPckCrl(ca);
 
-    if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
+    if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
-    const crl = pck_server_res.rawBody;
+    const crl = getBodyBuffer(pck_server_res);
 
     await sequelize.transaction(async() => {
         // update or insert PCK CRL
@@ -303,12 +293,12 @@ export async function getPckCrlFromPCS(ca) {
 export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
     const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type);
 
-    if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
+    if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const result = {
-        tcbinfo: pck_server_res.rawBody
+        tcbinfo: getBodyBuffer(pck_server_res)
     };
     const issuerChainName = appUtil.getTcbInfoIssuerChainName(version);
     result[issuerChainName] = pcsClient.getHeaderValue(
@@ -335,7 +325,7 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
 export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type) {
     const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type);
 
-    if (pck_server_res.statusCode !== Constants.HTTP_SUCCESS) {
+    if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
@@ -343,7 +333,7 @@ export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type
         // update or insert QE Identity
         await enclaveIdentityDao.upsertEnclaveIdentity(
             enclave_id,
-            pck_server_res.rawBody,
+            getBodyBuffer(pck_server_res),
             version,
             update_type
         );
@@ -357,7 +347,7 @@ export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type
     });
 
     return {
-        identity:                                      pck_server_res.rawBody,
+        identity:                                      getBodyBuffer(pck_server_res),
         [Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN]: pcsClient.getHeaderValue(
             pck_server_res.headers,
             Constants.SGX_ENCLAVE_IDENTITY_ISSUER_CHAIN
@@ -375,7 +365,7 @@ export async function getRootCACrlFromPCS(rootcaParam) {
                 global.PCS_VERSION,
                 Constants.UPDATE_TYPE_STANDARD
             );
-            if (pck_server_res.statusCode === Constants.HTTP_SUCCESS) {
+            if (isSuccessfulResponseWithBody(pck_server_res)) {
                 // update certificates
                 await pcsCertificatesDao.upsertEnclaveIdentityIssuerChain(
                     pcsClient.getHeaderValue(

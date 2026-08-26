@@ -54,6 +54,7 @@ DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
 <deliverydir>/service/pckCertSelection/Tcb.js	<installdir>/pckCertSelection/Tcb.js	0	main	STP
 <deliverydir>/service/pckCertSelection/pckCertSelection.js	<installdir>/pckCertSelection/pckCertSelection.js	0	main	STP
 <deliverydir>/service/pcs_client/pcs_client.js	<installdir>/pcs_client/pcs_client.js	0	main	STP
+<deliverydir>/service/pcs_client/proxy.js	<installdir>/pcs_client/proxy.js	0	main	STP
 <deliverydir>/service/routes/index.js	<installdir>/routes/index.js	0	main	STP
 <deliverydir>/service/services/identityService.js	<installdir>/services/identityService.js	0	main	STP
 <deliverydir>/service/services/index.js	<installdir>/services/index.js	0	main	STP
@@ -76,6 +77,7 @@ DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
 <deliverydir>/service/utils/Logger.js	<installdir>/utils/Logger.js	0	main	STP
 <deliverydir>/service/utils/CcsError.js	<installdir>/utils/CcsError.js	0	main	STP
 <deliverydir>/service/utils/apputil.js	<installdir>/utils/apputil.js	0	main	STP
+<deliverydir>/service/utils/responseBody.js	<installdir>/utils/responseBody.js	0	main	STP
 <deliverydir>/service/utils/errors.js	<installdir>/utils/errors.js	0	main	STP
 <deliverydir>/service/x509/x509.js	<installdir>/x509/x509.js	0	main	STP
 <deliverydir>/service/install.sh	<installdir>/install.sh	0	main	STP
