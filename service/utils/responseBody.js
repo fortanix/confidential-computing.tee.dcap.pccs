@@ -26,11 +26,16 @@ export function getBodyBuffer(response) {
 }
 
 export function parsePckServerResponseBody(body) {
+    if (body === null || body === undefined) {
+        logger.error('Unrecognized server response.');
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+    }
+
     if (typeof body === 'string') {
         return JSON.parse(body);
     }
 
-    if (Buffer.isBuffer(body) || body instanceof Uint8Array) {
+    if (Buffer.isBuffer(body) || body instanceof Uint8Array || body instanceof ArrayBuffer) {
         return JSON.parse(Buffer.from(body).toString('utf8'));
     }
 
@@ -43,5 +48,31 @@ export function parsePckServerResponseBody(body) {
 }
 
 export function isSuccessfulResponseWithBody(response) {
-    return response.statusCode === Constants.HTTP_SUCCESS && Boolean(response.body);
+    if (response.statusCode !== Constants.HTTP_SUCCESS) {
+        return false;
+    }
+
+    const { body } = response;
+
+    if (body === null || body === undefined) {
+        return false;
+    }
+
+    if (typeof body === 'string') {
+        return body.length > 0;
+    }
+
+    if (Buffer.isBuffer(body) || body instanceof Uint8Array || body instanceof ArrayBuffer) {
+        return Buffer.byteLength(body) > 0;
+    }
+
+    if (Array.isArray(body)) {
+        return body.length > 0;
+    }
+
+    if (typeof body === 'object') {
+        return Object.keys(body).length > 0;
+    }
+
+    return false;
 }

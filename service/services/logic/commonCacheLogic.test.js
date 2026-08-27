@@ -449,7 +449,26 @@ describe('commonCacheLogic', () => {
             expect(result.cert).to.equal(CERT_PEM);
         });
 
-        it('throws INTERNAL_ERROR for unrecognized response body type from parsePckServerResponseBody', async() => {
+        it('handles an ArrayBuffer response body from parsePckServerResponseBody and rejects null bodies', () => {
+            const certArray = [{ tcbm: TCBM, cert: encodeURIComponent(CERT_PEM) }];
+            const json = JSON.stringify(certArray);
+            const bytes = new TextEncoder().encode(json);
+
+            expect(responseBodyUtil.parsePckServerResponseBody(bytes.buffer)).to.deep.equal(certArray);
+            assert.throws(
+                () => responseBodyUtil.parsePckServerResponseBody(null),
+                err => err.status === CcsStatus.CCS_STATUS_INTERNAL_ERROR[0]
+            );
+        });
+
+        it('does not treat empty binary or text bodies as successful responses with content', () => {
+            expect(responseBodyUtil.isSuccessfulResponseWithBody({ statusCode: Constants.HTTP_SUCCESS, body: Buffer.alloc(0) })).to.be.false;
+            expect(responseBodyUtil.isSuccessfulResponseWithBody({ statusCode: Constants.HTTP_SUCCESS, body: new Uint8Array(0) })).to.be.false;
+            expect(responseBodyUtil.isSuccessfulResponseWithBody({ statusCode: Constants.HTTP_SUCCESS, body: '' })).to.be.false;
+            expect(responseBodyUtil.isSuccessfulResponseWithBody({ statusCode: Constants.HTTP_SUCCESS, body: 'ok' })).to.be.true;
+        });
+
+        it('throws NO_CACHE_DATA for unsupported non-content response bodies', async() => {
             const c = new TestContext();
             const res = makeCertResponse();
             res.body = 12345;
@@ -458,7 +477,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                CcsStatus.CCS_STATUS_NO_CACHE_DATA
             );
         });
 
