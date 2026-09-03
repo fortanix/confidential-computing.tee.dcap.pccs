@@ -27,6 +27,7 @@ DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
 <deliverydir>/service/dao/models/enclave_identities.js	<installdir>/dao/models/enclave_identities.js	0	main	STP
 <deliverydir>/service/dao/models/crl_cache.js	<installdir>/dao/models/crl_cache.js	0	main	STP
 <deliverydir>/service/dao/models/appraisal_policy.js	<installdir>/dao/models/appraisal_policy.js	0	main	STP
+<deliverydir>/service/dao/models/mysqlSslConfig.js	<installdir>/dao/models/mysqlSslConfig.js	0	main	STP
 <deliverydir>/service/dao/fmspcTcbDao.js	<installdir>/dao/fmspcTcbDao.js	0	main	STP
 <deliverydir>/service/dao/pckCertchainDao.js	<installdir>/dao/pckCertchainDao.js	0	main	STP
 <deliverydir>/service/dao/pckcertDao.js	<installdir>/dao/pckcertDao.js	0	main	STP

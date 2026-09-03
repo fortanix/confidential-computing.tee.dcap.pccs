@@ -28,10 +28,10 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import * as fs from 'fs';
 import Config from 'config';
 import Sequelize from 'sequelize';
 import logger from '../../utils/Logger.js';
+import { getSSLConfig } from './mysqlSslConfig.js';
 import FmspcTcbs from './fmspc_tcbs.js';
 import PckCert from './pck_cert.js';
 import PckCertchain from './pck_certchain.js';
@@ -49,14 +49,6 @@ import clshooked from 'cls-hooked';
 
 const db_namespace = clshooked.createNamespace('ccs-db-namespace');
 Sequelize.useCLS(db_namespace);
-
-// get config options for ssl
-function getSSLConfig(sslConfig) {
-    if (sslConfig && sslConfig.required && fs.existsSync(sslConfig.ca)) {
-        return { ssl: { ca: fs.readFileSync(sslConfig.ca) } };
-    }
-    return null;
-}
 
 function initModels(sequelize) {
     FmspcTcbs.init(sequelize);
@@ -133,7 +125,7 @@ async function handleMySQLError(dbConfig, dbOptions, err) {
             port:     dbOptions.port,
             user:     dbConfig.username,
             password: dbConfig.password,
-            ...getSSLConfig(dbConfig.ssl)
+            ...getSSLConfig(dbConfig.ssl) ?? {}
         };
         const connection = await mysqlPromise.createConnection(connOptions);
         await connection.query(

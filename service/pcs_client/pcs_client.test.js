@@ -479,4 +479,21 @@ describe('pcs_client', () => {
             }
         });
     });
+
+    describe('outbound PCS transport security', () => {
+        it('does not disable TLS certificate validation on outbound requests to the configured PCS uri', async() => {
+            const ctx = new TestContext();
+            const { getPckCrl } = await ctx.getTarget();
+
+            await getPckCrl(ctx.testCa);
+
+            expect(ctx.gotStub.calledOnce).to.be.true;
+            const [, options] = ctx.gotStub.getCall(0).args;
+            expect(options.rejectUnauthorized, 'must not disable certificate validation via rejectUnauthorized:false').to.not.equal(false);
+            expect(
+                options.https && options.https.rejectUnauthorized,
+                'must not disable certificate validation via https.rejectUnauthorized:false'
+            ).to.not.equal(false);
+        });
+    });
 });

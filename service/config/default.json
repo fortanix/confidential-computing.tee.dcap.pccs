@@ -51,8 +51,8 @@
     //        "logging" : false
     //    },
     //    "ssl":{
-    //        "required": false,
-    //        "ca":"/if_ssl_is_required/path/to/your_ssl_ca"
+    //        "required": true,
+    //        "ca":"/path/to/your_ssl_ca"
     //    }
     //}
 }

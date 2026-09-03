@@ -60,7 +60,19 @@ const app = express();
 app.disable('x-powered-by');
 
 async function initializeApp() {
-    global.PCS_VERSION = appUtil.getApiVersionFromUrl(Config.get('uri'));
+    if (!Config.has('uri')) {
+        const message = "The configured PCS 'uri' is missing.";
+        logger.error(message);
+        logger.endAndExitProcess();
+        throw new Error(message);
+    }
+    try {
+        global.PCS_VERSION = appUtil.getApiVersionFromUrl(Config.get('uri'));
+    } catch (err) {
+        logger.error(`The configured PCS 'uri' is invalid: ${err.message}`);
+        logger.endAndExitProcess();
+        throw err;
+    }
 
     if (Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE')) {
         const crypto = await import('node:crypto');
@@ -160,16 +172,16 @@ function startHttpsServer() {
     ];
     const fipsEnabled = Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE');
 
-    const secure_ciphers = fipsEnabled
-        ? [
+    const secure_ciphers = fipsEnabled ?
+        [
             'TLS_AES_256_GCM_SHA384',
             'TLS_AES_128_GCM_SHA256',
             'ECDHE-RSA-AES256-GCM-SHA384',
             'ECDHE-ECDSA-AES256-GCM-SHA384',
             'ECDHE-RSA-AES128-GCM-SHA256',
             'ECDHE-ECDSA-AES128-GCM-SHA256',
-        ]
-        : [
+        ] :
+        [
             'TLS_AES_256_GCM_SHA384',
             'TLS_CHACHA20_POLY1305_SHA256',
             'TLS_AES_128_GCM_SHA256',
@@ -180,9 +192,9 @@ function startHttpsServer() {
             'ECDHE-ECDSA-AES128-GCM-SHA256',
         ];
 
-    const secure_ecdh_curves = fipsEnabled
-        ? ['P-384', 'P-521', 'P-256']
-        : ['P-384', 'P-521', 'X448', 'P-256', 'X25519'];
+    const secure_ecdh_curves = fipsEnabled ?
+        ['P-384', 'P-521', 'P-256'] :
+        ['P-384', 'P-521', 'X448', 'P-256', 'X25519'];
     const options = {
         key:              privateKey,
         cert:             certificate,
