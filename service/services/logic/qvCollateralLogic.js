@@ -33,8 +33,8 @@ import * as pcsCertificatesDao from '../../dao/pcsCertificatesDao.js';
 import * as enclaveIdentityDao from '../../dao/enclaveIdentityDao.js';
 import * as pckcrlDao from '../../dao/pckcrlDao.js';
 import * as CommonCacheLogic from './commonCacheLogic.js';
-import PccsError from '../../utils/PccsError.js';
-import PccsStatus from '../../constants/pccs_status_code.js';
+import CcsError from '../../utils/CcsError.js';
+import CcsStatus from '../../constants/ccs_status_code.js';
 
 async function fetchWithFallback(daoMethod, pcsMethod, ...args) {
     const result = await daoMethod(...args);
@@ -58,7 +58,7 @@ export async function checkQuoteVerificationCollateral(update) {
     } else if (update === Constants.UPDATE_TYPE_ALL) {
         updateTypes = [Constants.UPDATE_TYPE_EARLY, Constants.UPDATE_TYPE_STANDARD];
     } else {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     const versionsToFetch = [pcsVersion];

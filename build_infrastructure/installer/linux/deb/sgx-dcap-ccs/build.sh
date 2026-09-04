@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+#
+# Copyright (C) 2011-2026 Intel Corporation
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+# OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+# OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+# EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+
+set -eu
+
+SCRIPT_DIR=$(dirname "$0")
+ROOT_DIR="${SCRIPT_DIR}/../../../../../"
+LINUX_INSTALLER_DIR="${ROOT_DIR}/build_infrastructure/installer/linux"
+LINUX_INSTALLER_COMMON_DIR="${LINUX_INSTALLER_DIR}/common"
+LINUX_INSTALLER_COMMON_DCAP_PCCS_DIR="${LINUX_INSTALLER_COMMON_DIR}/sgx-dcap-ccs"
+
+source ${LINUX_INSTALLER_COMMON_DCAP_PCCS_DIR}/installConfig
+DEB_FOLDER=${DCAP_CCS_PACKAGE_NAME}-${DCAP_CCS_VERSION}
+
+PCCS_VERSION=$1
+DEB_BUILD_FOLDER=${DCAP_CCS_PACKAGE_NAME}-${PCCS_VERSION}
+
+main() {
+    pre_build
+    create_upstream_tarball
+    unpack_upstream_tarball
+    generate_copyright
+    update_version
+    update_install_path
+    rename_tarball
+    build_deb_package
+    post_build
+}
+
+pre_build() {
+    rm -fR ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    cp -fR ${SCRIPT_DIR}/${DEB_FOLDER} ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+}
+
+post_build() {
+    rm -fR ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+}
+
+create_upstream_tarball() {
+    ${LINUX_INSTALLER_COMMON_DCAP_PCCS_DIR}/createTarball.sh
+    cp ${LINUX_INSTALLER_COMMON_DCAP_PCCS_DIR}/output/${TARBALL_NAME} ${SCRIPT_DIR}
+}
+
+unpack_upstream_tarball() {
+    pushd ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    cp ../${TARBALL_NAME} .
+    tar xvf ${TARBALL_NAME}
+    rm -f ${TARBALL_NAME}
+    popd
+}
+
+generate_copyright() {
+    pushd ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    rm -f debian/copyright
+    find package/licenses/ -type f -print0 | xargs -0 -n1 cat >> debian/copyright
+    popd
+}
+
+get_os_code() {
+    OS_CODE=$(lsb_release -cs 2> /dev/null)
+    if [ -z ${OS_CODE} ]; then
+        OS_CODE=$(grep "VERSION_CODENAME" /etc/os-release 2> /dev/null | cut -d= -f2)
+    fi
+    echo ${OS_CODE}
+}
+
+update_version() {
+    pushd ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    INS_VERSION=$(echo $(dpkg-parsechangelog |grep "Version" | cut -d: -f2))
+    INS_DATE=$(dpkg-parsechangelog | awk '/^Date:/ {print substr($0, index($0,$2)) ; exit}')
+    DEB_VERSION=$(echo ${INS_VERSION} | cut -d- -f2)
+
+    FULL_VERSION=${PCCS_VERSION}-$(get_os_code)${DEB_VERSION}
+    sed -i "0,/${INS_VERSION}/s//${FULL_VERSION}/" debian/changelog
+    sed -i "0,/${INS_DATE}/s//$(date -u +"%a, %d %b %Y %H:%M:%S +0000")/" debian/changelog
+    sed -i "s/@dep_version@/${FULL_VERSION}/g" debian/control
+    popd
+}
+
+update_install_path() {
+    pushd ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    sed -i "s#@pkg_path@#${INTEL_PACKAGES_PATH}/${DCAP_CCS_PACKAGE_NAME}#" debian/conffiles
+    sed -i "s#@pkg_path@#${INTEL_PACKAGES_PATH}/${DCAP_CCS_PACKAGE_NAME}#" debian/postinst
+    sed -i "s#@legacy_pkg_path@#${INTEL_PACKAGES_PATH}/${LEGACY_DCAP_PCCS_PACKAGE_NAME}#" debian/postinst
+    sed -i "s#@pkg_path@#${INTEL_PACKAGES_PATH}/${DCAP_CCS_PACKAGE_NAME}#" debian/postrm
+    sed -i "s#@pkg_path@#${INTEL_PACKAGES_PATH}/${DCAP_CCS_PACKAGE_NAME}#" debian/prerm
+
+    if [ "${LEGACY_DCAP_PCCS_PACKAGE_NAME}" != "${DCAP_CCS_PACKAGE_NAME}" ]; then
+        sed -i "s#@legacy_provides@#Provides: ${LEGACY_DCAP_PCCS_PACKAGE_NAME}#" debian/control
+        sed -i "s#@legacy_replaces@#Replaces: ${LEGACY_DCAP_PCCS_PACKAGE_NAME}#" debian/control
+        sed -i "s#@legacy_conflicts@#Conflicts: ${LEGACY_DCAP_PCCS_PACKAGE_NAME}#" debian/control
+    else
+        sed -i "s#@legacy_provides@##" debian/control
+        sed -i "s#@legacy_replaces@##" debian/control
+        sed -i "s#@legacy_conflicts@##" debian/control
+    fi
+    popd
+}
+
+rename_tarball() {
+    TARBALL_NAME_NEW_VERSION=$(echo ${TARBALL_NAME} | sed "s/${DCAP_CCS_VERSION}/${PCCS_VERSION}/")
+    mv ${SCRIPT_DIR}/${TARBALL_NAME} ${SCRIPT_DIR}/${TARBALL_NAME_NEW_VERSION}
+}
+
+build_deb_package() {
+    pushd ${SCRIPT_DIR}/${DEB_BUILD_FOLDER}
+    SOURCE_DATE_EPOCH="$(date +%s)" dpkg-buildpackage -us -uc
+    popd
+}
+
+main $@

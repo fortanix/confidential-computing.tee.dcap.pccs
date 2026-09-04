@@ -30,16 +30,16 @@
  */
 
 import Constants from '../constants/index.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import { PckCertchain, sequelize } from './models/index.js';
 
 export async function upsertPckCertchain(ca) {
     if (typeof ca === 'undefined') {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     if (ca !== Constants.CA_PROCESSOR && ca !== Constants.CA_PLATFORM) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 
     return await PckCertchain.upsert({
@@ -68,6 +68,6 @@ export async function getPckCertChain(ca) {
     } else if (certchain.length === 1) {
         return certchain[0];
     } else {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 }

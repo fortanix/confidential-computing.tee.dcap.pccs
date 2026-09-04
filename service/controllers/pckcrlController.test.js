@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 
 class TestContext extends ControllerTestContext {
@@ -52,7 +52,7 @@ describe('pckcrlController', () => {
             await target.getPckCrl(ctx.getRequest(), ctx.response, ctx.next);
 
             expect(ctx.pckcrlService.getPckCrl.calledWith(Constants.CA_PROCESSOR, ctx.encoding)).to.be.true;
-            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
             expect(ctx.response.header.calledWith(Constants.SGX_PCK_CRL_ISSUER_CHAIN, ctx.crlData.issuerChain)).to.be.true;
             expect(ctx.response.header.calledWith('Content-Type', 'application/x-pem-file')).to.be.true;
             expect(ctx.response.send.calledWith(ctx.crlData.pckcrl)).to.be.true;
@@ -68,7 +68,7 @@ describe('pckcrlController', () => {
             await target.getPckCrl(ctx.getRequest(), ctx.response, ctx.next);
 
             expect(ctx.pckcrlService.getPckCrl.calledWith(Constants.CA_PLATFORM, ctx.encoding)).to.be.true;
-            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
             expect(ctx.response.header.calledWith(Constants.SGX_PCK_CRL_ISSUER_CHAIN, ctx.crlData.issuerChain)).to.be.true;
             expect(ctx.response.header.calledWith('Content-Type', 'application/pkix-crl')).to.be.true;
             expect(ctx.response.send.calledWith(ctx.crlData.pckcrl)).to.be.true;
@@ -83,7 +83,7 @@ describe('pckcrlController', () => {
 
             await assert.rejects(
                 () => target.getPckCrl(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.pckcrlService.getPckCrl.notCalled).to.be.true;
@@ -96,7 +96,7 @@ describe('pckcrlController', () => {
 
             await assert.rejects(
                 () => target.getPckCrl(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.pckcrlService.getPckCrl.notCalled).to.be.true;

@@ -30,8 +30,8 @@
  */
 
 import { pckcrlService } from '../services/index.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 import logger from '../utils/Logger.js';
 
@@ -41,7 +41,7 @@ export async function getPckCrl(req, res, next) {
         const ca = req.query.ca?.toUpperCase();
         if (ca !== Constants.CA_PROCESSOR && ca !== Constants.CA_PLATFORM) {
             logger.error(`ca is not valid : ${ca}`);
-            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
         }
 
         const encoding = req.query.encoding;
@@ -51,7 +51,7 @@ export async function getPckCrl(req, res, next) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .header(
                 Constants.SGX_PCK_CRL_ISSUER_CHAIN,
                 pckcrlJson[Constants.SGX_PCK_CRL_ISSUER_CHAIN]
