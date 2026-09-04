@@ -34,7 +34,8 @@
     "eslint-plugin-n": "^18.0.0",
     "esmock": "^2.7.5",
     "mocha": "^11.7.5",
-    "sinon": "^21.1.2"
+    "sinon": "^21.1.2",
+    "supertest": "^7.2.2"
   },
   "engines": {
     "node": ">= 22.13.0"
