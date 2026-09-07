@@ -29,8 +29,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 import logger from '../utils/Logger.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -48,7 +48,7 @@ import * as appUtil from '../utils/apputil.js';
 import {
     PLATFORM_COLLATERAL_SCHEMA_V3,
     PLATFORM_COLLATERAL_SCHEMA_V4,
-} from './pccs_schemas.js';
+} from './ccs_schemas.js';
 import { sequelize } from '../dao/models/index.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
 
@@ -89,7 +89,7 @@ async function validateCollateral(collateralJson, version) {
             logger.error(err.schemaPath);
             logger.error(err.message);
         });
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 }
 
@@ -119,7 +119,7 @@ async function processPckCert(platformCerts, platforms, tcbInfos, version) {
 
     if (!certs || certs.length === 0) {
         logger.error('PCK certificates not found in the collateral file.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     // Flush and add certs for this platform
@@ -149,26 +149,26 @@ async function processPckCert(platformCerts, platforms, tcbInfos, version) {
     const x509 = new X509();
     if (!x509.parseCert(decodedCerts[0].pck_cert)) {
         logger.error('Invalid certificate format.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     const { fmspc, ca } = x509;
     if (!fmspc || !ca) {
         logger.error('Invalid certificate format.');
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     // get tcbinfo for the fmspc
     const tcbinfo = tcbInfos.find((o) => o.fmspc.toUpperCase() === fmspc);
     if (!tcbinfo) {
         logger.error("Can't find TCB info.");
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     const tcbinfoObj = getTcbInfoObject(tcbinfo, version);
     if (tcbinfoObj === null) {
         logger.error("Can't find TCB info.");
-        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
     }
 
     const bestPckCertsPerPlatform = platformsCleaned.map(platform => {
@@ -176,7 +176,7 @@ async function processPckCert(platformCerts, platforms, tcbInfos, version) {
             return [platform, selectBestPckCert(platform.cpu_svn, platform.pce_svn, platform.pce_id, decodedCerts, tcbinfoObj)];
         } catch {
             logger.error(`Failed to select the best certificate for ${platform}`);
-            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
         }
     });
 
@@ -321,7 +321,7 @@ export async function addPlatformCollateral(collateralJson, version) {
         // process the intermediate or signing certificates
         const rootCert = await processCertificates(collaterals.certificates, version);
         if (!verifyCertChain(rootCert)) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_INTEGRITY_ERROR);
+            throw new CcsError(CcsStatus.CCS_STATUS_INTEGRITY_ERROR);
         }
 
         // process the rootcacrl

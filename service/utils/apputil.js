@@ -68,6 +68,17 @@ export function startupCheck() {
         );
         return false;
     }
+    const pcsUri = Config.has('uri') ? Config.get('uri') : undefined;
+    try {
+        const parsed = new URL(pcsUri);
+        if (parsed.protocol !== 'https:') {
+            logger.error(`The configured PCS 'uri' must use https://, got: ${parsed.origin}`);
+            return false;
+        }
+    } catch {
+        logger.error("The configured PCS 'uri' must be a valid https:// URL.");
+        return false;
+    }
     return true;
 }
 

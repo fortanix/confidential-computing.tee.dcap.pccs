@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 
 class TestContext extends ControllerTestContext {
@@ -50,7 +50,7 @@ class TestContext extends ControllerTestContext {
     }
 
     verifyPositiveResponse() {
-        expect(this.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+        expect(this.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
         expect(this.response.header.calledWith(this.getExpectedIssuerChainName(), this.issuerChain)).to.be.true;
         expect(this.response.header.calledWith('Content-Type', 'application/json')).to.be.true;
         expect(this.response.send.calledWith(JSON.stringify(this.tcbinfo))).to.be.true;
@@ -106,7 +106,7 @@ describe('tcbinfoController', () => {
 
             await assert.rejects(
                 () => target.getSgxTcbInfo(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.tcbinfoService.getTcbInfo.notCalled).to.be.true;
@@ -119,7 +119,7 @@ describe('tcbinfoController', () => {
 
             await assert.rejects(
                 () => target.getSgxTcbInfo(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.tcbinfoService.getTcbInfo.notCalled).to.be.true;

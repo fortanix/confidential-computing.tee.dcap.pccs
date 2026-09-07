@@ -35,7 +35,7 @@ call npm install node-windows@1.0.0-beta.8 -g
 
 call npm link node-windows
 
-call node pccs.winsvc.uninst.cjs
+call node ccs.winsvc.uninst.cjs
 
 if exist node_modules call rd /s /q node_modules
 

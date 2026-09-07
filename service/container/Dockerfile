@@ -6,7 +6,7 @@ ARG NODE_VERSION=24.15.0
 
 # Declare directories when source will be copied and service will be built
 # this need to match the directory location in the cloned source layout
-ARG SRC_OUTPUT_DIR=/pccs
+ARG SRC_OUTPUT_DIR=/ccs
 ARG BUILD_OUTPUT_DIR=${SRC_OUTPUT_DIR}/service
 
 # Use multi-stage builds to reduce final image size
@@ -14,7 +14,7 @@ FROM docker.io/library/debian:12 AS builder
 
 # Define arguments used across multiple stages
 ARG DCAP_VERSION=main
-ARG SRC_LOCATION=https://github.com/intel/confidential-computing.tee.dcap.pccs.git
+ARG SRC_LOCATION=https://github.com/intel/confidential-computing.tee.dcap.ccs.git
 ARG NODE_VERSION
 
 # update and install packages, nodejs
@@ -50,7 +50,7 @@ ARG SRC_OUTPUT_DIR
 ARG CLONE_FLAGS="-b ${DCAP_VERSION} --depth 1"
 RUN git clone ${CLONE_FLAGS} ${SRC_LOCATION} ${SRC_OUTPUT_DIR}
 
-# Build PCCS
+# Build CCS
 ARG BUILD_OUTPUT_DIR
 WORKDIR $BUILD_OUTPUT_DIR
 RUN npm config set proxy $http_proxy \
@@ -66,7 +66,7 @@ ARG NODE_VERSION
 ENV NODE_ENV=production
 
 # Create user and group before copying files
-ARG USER=pccs
+ARG USER=ccs
 ARG GROUP=${USER}
 # Unique default UID to avoid conflicts
 ARG UID=70636373
@@ -80,7 +80,7 @@ RUN mkdir -p ${DATA_DIR} && chown -R ${USER}:${GROUP} ${DATA_DIR}
 
 # Copy only necessary files from builder stage
 ARG BUILD_OUTPUT_DIR
-ARG TARGET_DIR=/opt/intel/pccs/
+ARG TARGET_DIR=/opt/intel/ccs/
 COPY --from=builder /root/.nvm/versions/node/v$NODE_VERSION/bin/node /usr/bin/node
 COPY --from=builder --chown=${USER}:${GROUP} $BUILD_OUTPUT_DIR $TARGET_DIR
 
@@ -89,4 +89,4 @@ WORKDIR $TARGET_DIR
 USER ${USER}
 
 # Define entrypoint
-ENTRYPOINT ["/usr/bin/node", "pccs_server.js"]
+ENTRYPOINT ["/usr/bin/node", "ccs_server.js"]

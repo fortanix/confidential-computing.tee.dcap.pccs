@@ -31,81 +31,25 @@
 
 import Config from 'config';
 import got from 'got';
-import caw from 'caw';
-import logger from '../utils/Logger.js';
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import logger, { parseAndShortenUrlForLogging } from '../utils/Logger.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
+import { sanitizedProxyForLogging, httpsProxyAgent } from './proxy.js';
 
-const HTTP_TIMEOUT = 120000; // 120 seconds
-const MAX_RETRY_COUNT = 6; // Max retry 6 times, approximate 64 seconds in total
-let HttpsAgent;
-if (Config.has('proxy') && Config.get('proxy')) {
-    // use proxy settings in config file
-    HttpsAgent = {
-        https: caw(Config.get('proxy'), { protocol: 'https' }),
-    };
-} else {
-    // use system proxy
-    HttpsAgent = {
-        https: caw({ protocol: 'https' }),
-    };
-}
+const HTTP_TIMEOUT = (Config.has('PcsRequestTimeoutSeconds') ? Config.get('PcsRequestTimeoutSeconds') : 16) * 1000;
+const MAX_RETRY_COUNT = Config.has('PcsMaxRetryCount') ? Config.get('PcsMaxRetryCount') : 2;
 
-function isEarlyAccessPortal(url) {
-    if (url.startsWith('https://validation.api.trustedservices.intel.com/')) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-export function parseAndModifyUrl(url) {
-    try {
-        let parsedUrl;
-        let queryString = '';
-
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-            try {
-                parsedUrl = new URL(url);
-                queryString = parsedUrl.search.slice(1);
-            } catch (error) {
-                logger.warn(`URL parsing error: ${error.message}`);
-                return url;
-            }
-        } else {
-            const [path, query] = url.split('?', 2);
-            parsedUrl = { pathname: path, search: query ? `?${query}` : '' };
-            queryString = query || '';
-        }
-        if (!queryString) {
-            return url;
-        }
-
-        const paramsArray = queryString.split('&');
-        const modifiedParamsArray = paramsArray.map(param => {
-            const [key, value] = param.split('=');
-            if (value && value.length > 50) {
-                const modifiedValue = `${value.slice(0, 4)}...${value.slice(-4)}`;
-                return `${key}=${modifiedValue}`;
-            }
-            return param;
-        });
-
-        const modifiedQueryString = modifiedParamsArray.join('&');
-        parsedUrl.search = `?${modifiedQueryString}`;
-        const modifiedUrl = parsedUrl.origin ? parsedUrl.origin + parsedUrl.pathname + parsedUrl.search : parsedUrl.pathname + parsedUrl.search;
-        return modifiedUrl;
-    } catch (error) {
-        logger.warn(`URL modifying error: ${error.message}`);
-        return null;
-    }
+export function isEarlyAccessPortal(url) {
+    return url.startsWith('https://validation.api.trustedservices.intel.com/');
 }
 
 async function doRequest(url, options) {
+    const shortenUrl = parseAndShortenUrlForLogging(url);
+    const startedAt = Date.now();
     try {
         if (url.indexOf('/v3/') >= 0) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
+            throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
         }
 
         // check for early access portal
@@ -116,21 +60,24 @@ async function doRequest(url, options) {
             options.headers['Ocp-Apim-Subscription-Key'] = Config.get('ApiKey');
         }
 
-        // global opitons ( proxy, timeout, etc)
-        options.timeout = HTTP_TIMEOUT;
-        options.agent = HttpsAgent;
+        // global options (proxy, timeout, etc)
+        if (httpsProxyAgent) {
+            options.agent = { https: httpsProxyAgent };
+        }
+        options.timeout = { request: HTTP_TIMEOUT };
         options.retry = {
             limit:   MAX_RETRY_COUNT,
             methods: ['GET', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'TRACE', 'POST'],
         };
+        if (!options.responseType) {
+            options.responseType = 'text';
+        }
         options.throwHttpErrors = false;
 
+        logger.info(`[PCS Request Start][URL=${shortenUrl}][Proxy=${sanitizedProxyForLogging}][TimeoutMs=${HTTP_TIMEOUT}]`);
         const response = await got(url, options);
-        const parsedUrl = parseAndModifyUrl(response.requestUrl);
         const warning = response.headers.warning ? `[Warning=${response.headers.warning}]` : '';
-        logger.info(`[Request-ID=${response.headers['request-id']}][URL=${parsedUrl}] -> [Status=${response.statusCode}]${warning}`);
-
-        logger.debug(`Request URL ${url}`);
+        logger.info(`[Request-ID=${response.headers['request-id']}][URL=${shortenUrl}] -> [Status=${response.statusCode}][ElapsedMs=${Date.now() - startedAt}]${warning}`);
 
         if (response.statusCode !== Constants.HTTP_SUCCESS) {
             if (response.statusCode === 400) {
@@ -142,15 +89,16 @@ async function doRequest(url, options) {
 
         return response;
     } catch (err) {
-        if (err.status === PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL[0]) {
+        if (err.status === CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL[0]) {
             throw err;
         }
+        logger.error(`[PCS Request Failed][URL=${shortenUrl}][ElapsedMs=${Date.now() - startedAt}]`);
         logger.error(err);
 
         if (err.response && err.response.headers) {
             logger.info(`Request-ID is : ${err.response.headers['request-id']}`);
         }
-        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_ACCESS_FAILURE);
+        throw new CcsError(CcsStatus.CCS_STATUS_PCS_ACCESS_FAILURE);
     }
 }
 
@@ -210,7 +158,8 @@ export async function getPckCrl(ca) {
             ca:       ca.toLowerCase(),
             encoding: 'der',
         },
-        method: 'GET',
+        responseType: 'buffer',
+        method:       'GET',
     };
 
     return doRequest(`${Config.get('uri')}pckcrl`, options);
@@ -218,14 +167,14 @@ export async function getPckCrl(ca) {
 
 export async function getTcb(type, fmspc, version, updateType) {
     if (version === 3) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
+        throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
     }
     if (type !== Constants.PROD_TYPE_SGX && type !== Constants.PROD_TYPE_TDX) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 
     if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 
@@ -247,17 +196,17 @@ export async function getTcb(type, fmspc, version, updateType) {
 
 export async function getEnclaveIdentity(enclaveId, version, updateType) {
     if (version === 3) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
+        throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
     }
     if (
         enclaveId !== Constants.QE_IDENTITY_ID &&
         enclaveId !== Constants.QVE_IDENTITY_ID &&
         enclaveId !== Constants.TDQE_IDENTITY_ID
     ) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 
@@ -279,16 +228,28 @@ export async function getEnclaveIdentity(enclaveId, version, updateType) {
 }
 
 export async function getFileFromUrl(uri) {
-    logger.debug(uri);
-
+    const shortenUri = parseAndShortenUrlForLogging(uri);
+    const startedAt = Date.now();
     const options = {
-        agent:   HttpsAgent,
-        timeout: HTTP_TIMEOUT,
+        timeout: { request: HTTP_TIMEOUT },
     };
+    if (httpsProxyAgent) {
+        options.agent = { https: httpsProxyAgent };
+    }
 
     try {
-        return await got(uri, options).buffer();
+        logger.info(
+            `[File Download Start][URL=${shortenUri}][Proxy=${sanitizedProxyForLogging}][TimeoutMs=${HTTP_TIMEOUT}]`
+        );
+        const content = await got(uri, options).buffer();
+        logger.info(
+            `[File Download Finished][URL=${shortenUri}][ElapsedMs=${Date.now() - startedAt}]`
+        );
+        return content;
     } catch (err) {
+        logger.error(
+            `[File Download Failed][URL=${shortenUri}][ElapsedMs=${Date.now() - startedAt}]`
+        );
         logger.error('Failed to download file for the given uri.');
         throw err;
     }

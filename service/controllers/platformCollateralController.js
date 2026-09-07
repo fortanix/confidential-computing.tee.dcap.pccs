@@ -30,7 +30,7 @@
  */
 
 import { platformCollateralService } from '../services/index.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import * as appUtil from '../utils/apputil.js';
 
 export async function putPlatformCollateral(req, res, next) {
@@ -41,8 +41,8 @@ export async function putPlatformCollateral(req, res, next) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
-            .send(PccsStatus.PCCS_STATUS_SUCCESS[1]);
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
+            .send(CcsStatus.CCS_STATUS_SUCCESS[1]);
     } catch (err) {
         next(err);
     }

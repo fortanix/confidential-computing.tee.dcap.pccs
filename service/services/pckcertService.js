@@ -28,8 +28,8 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 import * as pckcertDao from '../dao/pckcertDao.js';
 import * as platformTcbsDao from '../dao/platformTcbsDao.js';
@@ -52,7 +52,7 @@ export async function pckCertSelection(
 ) {
     const pck_certs = await pckcertDao.getCerts(qeid, pceid);
     if (pck_certs === null) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     // Always use SGX tcb info for PCK cert selection
@@ -62,7 +62,7 @@ export async function pckCertSelection(
     }
     if (tcbinfo === null || tcbinfo.tcbinfo === null) {
         logger.error(`No TCB info for the fmspc : ${fmspc}`);
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const tcbInfoObject = JSON.parse(tcbinfo.tcbinfo.toString('utf8')).tcbInfo;
@@ -71,13 +71,13 @@ export async function pckCertSelection(
     try {
         selectedPckCert = selectBestPckCert(cpusvn, pcesvn, pceid, pck_certs, tcbInfoObject);
     } catch {
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     const certchain = await pckCertchainDao.getPckCertChain(ca);
     if (certchain === null) {
         logger.error(`No certchain for : ${ca}`);
-        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
     }
 
     // create an entry for the new TCB level in platform_tcbs table
