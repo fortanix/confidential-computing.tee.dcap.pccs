@@ -18,9 +18,7 @@ class TestContext extends ControllerTestContext {
         this.identityService = {
             getEnclaveIdentity: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/identityService.js': this.identityService
-        };
+        this.serviceStubs['../services/identityService.js'] = this.identityService;
     }
 
     getRequest() {

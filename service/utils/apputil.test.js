@@ -16,7 +16,7 @@ class TestContext {
     }
 
     async getTarget() {
-        return await esmock('./apputil.js', {
+        return await esmock.strict('./apputil.js', {
             'config': {
                 'default': {
                     get: key => this.configValues[key],

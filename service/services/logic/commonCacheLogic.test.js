@@ -157,7 +157,7 @@ class TestContext {
     }
 
     async getTarget() {
-        return esmock('./commonCacheLogic.js', {
+        return esmock.strict('./commonCacheLogic.js', {
             '../../utils/CcsError.js':                    { 'default': MockCcsError },
             '../../constants/ccs_status_code.js':         { 'default': CcsStatus },
             '../../constants/index.js':                   { 'default': Constants },

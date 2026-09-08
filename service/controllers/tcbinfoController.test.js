@@ -19,9 +19,7 @@ class TestContext extends ControllerTestContext {
         this.tcbinfoService = {
             getTcbInfo: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/tcbinfoService.js': this.tcbinfoService
-        };
+        this.serviceStubs['../services/tcbinfoService.js'] = this.tcbinfoService;
     }
 
     getRequest() {

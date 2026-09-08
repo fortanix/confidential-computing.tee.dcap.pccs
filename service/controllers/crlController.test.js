@@ -16,17 +16,11 @@ class TestContext extends ControllerTestContext {
         this.crlService = {
             getCrl: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/crlService.js': this.crlService
-        };
+        this.serviceStubs['../services/crlService.js'] = this.crlService;
         this.sequelizeStub = {
             transaction: sinon.stub().callsFake(async(callback) => await callback())
         };
-        this.globalStubs = {
-            '../dao/models/index.js': {
-                sequelize: this.sequelizeStub
-            }
-        };
+        this.globalStubs['../dao/models/index.js'].sequelize = this.sequelizeStub;
     }
 
     getRequest() {

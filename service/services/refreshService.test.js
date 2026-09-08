@@ -171,7 +171,7 @@ class TestContext {
     }
 
     async getTarget() {
-        return esmock('./refreshService.js', {
+        return esmock.strict('./refreshService.js', {
             '../utils/CcsError.js':                    { 'default': MockCcsError },
             '../constants/ccs_status_code.js':         { 'default': CcsStatus },
             '../constants/index.js':                   { 'default': Constants },

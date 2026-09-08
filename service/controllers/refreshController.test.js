@@ -15,9 +15,7 @@ class TestContext extends ControllerTestContext {
         this.refreshService = {
             refreshCache: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/refreshService.js': this.refreshService
-        };
+        this.serviceStubs['../services/refreshService.js'] = this.refreshService;
     }
 
     getRequest() {

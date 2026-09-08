@@ -69,8 +69,14 @@ function makeServerDependencyMocks() {
             chmod:        () => {},
             readFileSync: () => 'test-pem',
         },
-        'https':     { createServer: () => ({ on: () => {}, listen: () => {} }) },
-        'node-cron': { 'default': { schedule: () => ({}) } },
+        'https':                                   { createServer: () => ({ on: () => {}, listen: () => {} }) },
+        'node-cron':                               { 'default': { schedule: () => ({}) } },
+        './services/refreshService.js':            { scheduledRefresh: () => {} },
+        './services/caching_modes/cachingMode.js': {
+            LazyCachingMode:    class {},
+            ReqCachingMode:     class {},
+            OfflineCachingMode: class {},
+        },
     };
 }
 
@@ -83,7 +89,7 @@ describe('auth bypass regression (duplicate slashes)', () => {
         controllers = makeControllerStubs();
         authStub = makeAuthStub();
 
-        const serverModule = await esmock('./ccs_server.js', makeServerDependencyMocks(), {
+        const serverModule = await esmock.strict('./ccs_server.js', makeServerDependencyMocks(), {
             './controllers/index.js': controllers,
             './middleware/auth.js':   authStub,
         });

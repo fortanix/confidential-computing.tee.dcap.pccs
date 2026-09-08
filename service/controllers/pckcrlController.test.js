@@ -20,9 +20,7 @@ class TestContext extends ControllerTestContext {
         this.pckcrlService = {
             getPckCrl: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/pckcrlService.js': this.pckcrlService
-        };
+        this.serviceStubs['../services/pckcrlService.js'] = this.pckcrlService;
     }
 
     getRequest() {
