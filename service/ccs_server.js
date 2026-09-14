@@ -107,7 +107,6 @@ function configureMiddlewareAndRoutes() {
     app.use(body_parser.urlencoded({ extended: true, limit: maxRequestBodySize }));
     app.use(body_parser.json({ limit: maxRequestBodySize }));
 
-    // note: don't configure middleware for whole routes (e.g. /sgx/certification/v4/platforms) as express allows using // in the URL, which will bypass the middleware. Instead, configure middleware in router.
     // router
     app.use('/sgx/certification/v3', sgxRouter);
     if (global.PCS_VERSION === 4) {

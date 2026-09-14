@@ -104,12 +104,6 @@ describe('auth bypass regression (duplicate slashes)', () => {
         delete global.PCS_VERSION;
     });
 
-    function credentialHeader(authType) {
-        return authType === 'admin' ?
-            { 'admin-token': ADMIN_TOKEN } :
-            { 'user-token': USER_TOKEN };
-    }
-
     function controllerSpyForRoute(route) {
         return controllers[route.controller[0]][route.controller[1]];
     }
@@ -130,19 +124,15 @@ describe('auth bypass regression (duplicate slashes)', () => {
                 expect(controllerSpyForRoute(route).called).to.equal(false);
             });
 
-            it('rejects the duplicate-slash path without credentials (no bypass)', async() => {
+            it('duplicate-slash path without credentials results in 404 (no merge of consecutive slashes)', async() => {
                 const res = await request(app)[route.method](doubleSlashPath);
 
-                expect(res.status).to.equal(401);
+                // Express 5's router no longer merges consecutive slashes, so the
+                // duplicate-slash path fails to match any route (404) instead of
+                // reaching the router/auth middleware. Either way, no bypass occurs.
+                expect(res.status).to.equal(404);
                 expect(controllerSpyForRoute(route).called).to.equal(false);
-                expect(authSpyForRoute(route).firstCall.args[0].originalUrl).to.equal(doubleSlashPath);
-            });
-
-            it('allows the duplicate-slash path when valid credentials are provided', async() => {
-                const res = await request(app)[route.method](doubleSlashPath).set(credentialHeader(route.auth));
-
-                expect(res.status).to.equal(200);
-                expect(controllerSpyForRoute(route).calledOnce).to.equal(true);
+                expect(authSpyForRoute(route).called).to.equal(false);
             });
         });
     });
