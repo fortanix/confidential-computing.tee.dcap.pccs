@@ -1,0 +1,242 @@
+#!/usr/bin/env node
+/*
+ * Copyright (C) 2011-2026 Intel Corporation
+ *
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holder nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+ * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+
+import Config from 'config';
+import morgan from 'morgan';
+import express from 'express';
+import logger, { formatLogMessage } from './utils/Logger.js';
+import cron from 'node-cron';
+import body_parser from 'body-parser';
+import { sgxRouter, tdxRouter, healthRouter } from './routes/index.js';
+import * as fs from 'fs';
+import * as https from 'https';
+import { constants as crypto_constants } from 'crypto';
+import { validateTokenHashes } from './middleware/auth.js';
+import * as error from './middleware/error.js';
+import addRequestId from './middleware/addRequestId.js';
+import filterDuplicatedParams from './middleware/filterDuplicatedParams.js';
+import v3EolWarning from './middleware/v3EolWarning.js';
+import * as refreshService from './services/refreshService.js';
+import * as healthService from './services/healthService.js';
+import * as appUtil from './utils/apputil.js';
+import { cachingModeManager } from './services/caching_modes/cachingModeManager.js';
+import {
+    LazyCachingMode,
+    ReqCachingMode,
+    OfflineCachingMode,
+} from './services/caching_modes/cachingMode.js';
+
+
+const app = express();
+app.disable('x-powered-by');
+
+async function initializeApp() {
+    if (!Config.has('uri')) {
+        const message = "The configured PCS 'uri' is missing.";
+        logger.error(message);
+        logger.endAndExitProcess();
+        throw new Error(message);
+    }
+    try {
+        global.PCS_VERSION = appUtil.getApiVersionFromUrl(Config.get('uri'));
+    } catch (err) {
+        logger.error(`The configured PCS 'uri' is invalid: ${err.message}`);
+        logger.endAndExitProcess();
+        throw err;
+    }
+
+    if (Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE')) {
+        const crypto = await import('node:crypto');
+        crypto.setFips(true);
+    }
+
+    if (!appUtil.startupCheck()) {
+        logger.endAndExitProcess();
+    }
+
+    const db_init_ok = await appUtil.databaseCheck();
+    if (!db_init_ok) {
+        logger.endAndExitProcess();
+    }
+
+    if (Config.get('DB_CONFIG') === 'sqlite') {
+        fs.chmod(Config.get('sqlite').options.storage, 0o640, () => {});
+    }
+}
+
+function configureMiddlewareAndRoutes() {
+    app.use(morgan(formatLogMessage, { stream: logger.stream }));
+    app.use(addRequestId);
+    app.use(filterDuplicatedParams);
+
+    app.use('/sgx/certification/v3', v3EolWarning);
+
+    validateTokenHashes();
+
+    // body size limits
+    const maxRequestBodySize = Config.has('MaxRequestBodySize') ? Config.get('MaxRequestBodySize') : '2MB';
+    app.use(body_parser.urlencoded({ extended: true, limit: maxRequestBodySize }));
+    app.use(body_parser.json({ limit: maxRequestBodySize }));
+
+    // router
+    app.use('/sgx/certification/v3', sgxRouter);
+    if (global.PCS_VERSION === 4) {
+        app.use('/sgx/certification/v4', sgxRouter);
+        app.use('/tdx/certification/v4', tdxRouter);
+    }
+
+    // health probe endpoints
+    app.use('/healthz', healthRouter);
+
+    // error handling middleware
+    app.use(error.errorHandling);
+}
+
+function setCachingMode() {
+    const cacheMode = Config.get('CachingFillMode');
+    if (cacheMode === 'LAZY') {
+        cachingModeManager.cachingMode = new LazyCachingMode();
+    } else if (cacheMode === 'REQ') {
+        cachingModeManager.cachingMode = new ReqCachingMode();
+    } else if (cacheMode === 'OFFLINE') {
+        cachingModeManager.cachingMode = new OfflineCachingMode();
+    } else {
+        logger.error('Unknown caching mode. Please check your configuration file.');
+        logger.endAndExitProcess();
+    }
+}
+
+function startHttpsServer() {
+    let privateKey;
+    let certificate;
+    try {
+        privateKey = fs.readFileSync('./ssl_key/private.pem', 'utf8');
+        certificate = fs.readFileSync('./ssl_key/file.crt', 'utf8');
+    } catch {
+        logger.error('The private key or certificate for HTTPS server is missing.');
+        logger.endAndExitProcess();
+    }
+
+    const secure_sigalgs = [
+        'ecdsa_secp256r1_sha256',
+        'ecdsa_secp384r1_sha384',
+        'ecdsa_secp521r1_sha512',
+        'rsa_pss_rsae_sha256',
+        'rsa_pss_rsae_sha384',
+        'rsa_pss_rsae_sha512',
+        'rsa_pkcs1_sha256',
+        'rsa_pkcs1_sha384',
+        'rsa_pkcs1_sha512',
+    ];
+    const fipsEnabled = Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE');
+
+    const secure_ciphers = fipsEnabled ?
+        [
+            'TLS_AES_256_GCM_SHA384',
+            'TLS_AES_128_GCM_SHA256',
+            'ECDHE-RSA-AES256-GCM-SHA384',
+            'ECDHE-ECDSA-AES256-GCM-SHA384',
+            'ECDHE-RSA-AES128-GCM-SHA256',
+            'ECDHE-ECDSA-AES128-GCM-SHA256',
+        ] :
+        [
+            'TLS_AES_256_GCM_SHA384',
+            'TLS_CHACHA20_POLY1305_SHA256',
+            'TLS_AES_128_GCM_SHA256',
+            'TLS_AES_128_CCM_SHA256',
+            'ECDHE-RSA-AES256-GCM-SHA384',
+            'ECDHE-ECDSA-AES256-GCM-SHA384',
+            'ECDHE-RSA-AES128-GCM-SHA256',
+            'ECDHE-ECDSA-AES128-GCM-SHA256',
+        ];
+
+    const secure_ecdh_curves = fipsEnabled ?
+        ['P-384', 'P-521', 'P-256'] :
+        ['P-384', 'P-521', 'X448', 'P-256', 'X25519'];
+    const options = {
+        key:              privateKey,
+        cert:             certificate,
+        sigalgs:          secure_sigalgs.join(':'),
+        honorCipherOrder: true,
+        ciphers:          secure_ciphers.join(':'),
+        ecdhCurve:        secure_ecdh_curves.join(':'),
+        secureOptions:    crypto_constants.SSL_OP_NO_RENEGOTIATION,
+    };
+
+    try {
+        const httpsServer = https.createServer(options, app);
+        httpsServer.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 60) * 1000;
+        httpsServer.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 30) * 1000;
+        httpsServer.keepAliveTimeout = (Config.has('KeepAliveTimeoutSeconds') ? Config.get('KeepAliveTimeoutSeconds') : 60) * 1000;
+        httpsServer.on('tlsClientError', (err, socket) => {
+            const peer = `${socket.remoteAddress ?? 'unknown'}:${socket.remotePort ?? 'unknown'}`;
+            logger.info(`TLS client error from ${peer}: ${err.code ?? ''} ${err.message}`.trim());
+        });
+        httpsServer.listen(Config.get('HTTPS_PORT'), Config.get('hosts'), () => {
+            logger.info(`HTTPS Server is running on: https://localhost:${Config.get('HTTPS_PORT')}`);
+            app.emit('app_started');
+        });
+    } catch (e) {
+        if (
+            e.code === 'ERR_OSSL_EVP_UNSUPPORTED' &&
+            Config.has('OPENSSL_FIPS_MODE') &&
+            Config.get('OPENSSL_FIPS_MODE')
+        ) {
+            logger.error(
+                'FIPS mode is not working correctly. Please double check your environment.'
+            );
+            logger.endAndExitProcess();
+        } else {
+            throw e;
+        }
+    }
+}
+
+function scheduleRefreshJob() {
+    cron.schedule(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
+}
+
+async function main() {
+    await initializeApp();
+    configureMiddlewareAndRoutes();
+    setCachingMode();
+    startHttpsServer();
+    scheduleRefreshJob();
+
+    // the boot sequence completed; /healthz/startup may report STARTED
+    healthService.markStartupComplete();
+}
+
+main();
+
+export default app;

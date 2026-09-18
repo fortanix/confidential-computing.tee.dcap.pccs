@@ -30,7 +30,7 @@
  */
 
 import { tcbinfoService, validatorService } from '../services/index.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 import * as appUtil from '../utils/apputil.js';
 
@@ -48,7 +48,7 @@ async function getTcbInfo(req, res, next, type) {
 
         // send response
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .header(
                 issuerChainName,
                 tcbinfoJson[issuerChainName]

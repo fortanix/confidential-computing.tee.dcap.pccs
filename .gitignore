@@ -1,8 +1,8 @@
 __pycache__/
-build_infrastructure/installer/linux/common/intel-tee-pccs-admin-tool/gen_source.py
-build_infrastructure/installer/linux/common/sgx-dcap-pccs/gen_source.py
-build_infrastructure/installer/linux/common/intel-tee-pccs-admin-tool/BOMs/BOM_license.txt
-build_infrastructure/installer/linux/common/sgx-dcap-pccs/BOMs/BOM_license.txt
+build_infrastructure/installer/linux/common/intel-tee-ccs-admin-tool/gen_source.py
+build_infrastructure/installer/linux/common/sgx-dcap-ccs/gen_source.py
+build_infrastructure/installer/linux/common/intel-tee-ccs-admin-tool/BOMs/BOM_license.txt
+build_infrastructure/installer/linux/common/sgx-dcap-ccs/BOMs/BOM_license.txt
 output/
 
 build_infrastructure/installer/linux/deb/*/*.deb
@@ -11,11 +11,11 @@ build_infrastructure/installer/linux/deb/*/*.changes
 build_infrastructure/installer/linux/deb/*/*.tar.xz
 build_infrastructure/installer/linux/deb/*/*.dsc
 build_infrastructure/installer/linux/deb/*/*.orig.tar.gz
-build_infrastructure/installer/linux/deb/intel-tee-pccs-admin-tool/intel-tee-pccs-admin-tool-*
-!build_infrastructure/installer/linux/deb/intel-tee-pccs-admin-tool/intel-tee-pccs-admin-tool-1.0
+build_infrastructure/installer/linux/deb/intel-tee-ccs-admin-tool/intel-tee-ccs-admin-tool-*
+!build_infrastructure/installer/linux/deb/intel-tee-ccs-admin-tool/intel-tee-ccs-admin-tool-1.0
 
 build_infrastructure/installer/linux/rpm/*/*.rpm
-build_infrastructure/installer/linux/rpm/intel-tee-pccs-admin-tool/intel-tee-pccs-admin-tool-*/
+build_infrastructure/installer/linux/rpm/intel-tee-ccs-admin-tool/intel-tee-ccs-admin-tool-*/
 *~
 .settings
 .classpath

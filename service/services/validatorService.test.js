@@ -3,13 +3,13 @@
 
 import { expect } from 'chai';
 import * as validatorService from './validatorService.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import Constants from '../constants/index.js';
 
 function assertThrowsInvalidRequest(fn) {
     expect(
         fn,
-    ).to.throw().that.has.property('status', PccsStatus.PCCS_STATUS_INVALID_REQ[0]);
+    ).to.throw().that.has.property('status', CcsStatus.CCS_STATUS_INVALID_REQ[0]);
 }
 
 function getHexOfLength(length) {

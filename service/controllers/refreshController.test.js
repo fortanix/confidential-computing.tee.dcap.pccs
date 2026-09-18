@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 
 class TestContext extends ControllerTestContext {
     constructor() {
@@ -15,9 +15,7 @@ class TestContext extends ControllerTestContext {
         this.refreshService = {
             refreshCache: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/refreshService.js': this.refreshService
-        };
+        this.serviceStubs['../services/refreshService.js'] = this.refreshService;
     }
 
     getRequest() {
@@ -40,8 +38,8 @@ describe('refreshController', () => {
             await target.refreshCache(ctx.getRequest(), ctx.response, ctx.next);
 
             expect(ctx.refreshService.refreshCache.calledWith(undefined, ctx.fmspc)).to.be.true;
-            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
-            expect(ctx.response.send.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[1])).to.be.true;
+            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.send.calledWith(CcsStatus.CCS_STATUS_SUCCESS[1])).to.be.true;
         });
 
         it('positive refresh certs type', async() => {
@@ -53,8 +51,8 @@ describe('refreshController', () => {
             await target.refreshCache(ctx.getRequest(), ctx.response, ctx.next);
 
             expect(ctx.refreshService.refreshCache.calledWith('certs', ctx.fmspc.toUpperCase())).to.be.true;
-            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
-            expect(ctx.response.send.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[1])).to.be.true;
+            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.send.calledWith(CcsStatus.CCS_STATUS_SUCCESS[1])).to.be.true;
         });
     });
 
@@ -67,7 +65,7 @@ describe('refreshController', () => {
 
             await assert.rejects(
                 () => target.refreshCache(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.refreshService.refreshCache.notCalled).to.be.true;
@@ -80,7 +78,7 @@ describe('refreshController', () => {
 
             await assert.rejects(
                 () => target.refreshCache(ctx.getRequest(), ctx.response, ctx.next),
-                (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
+                (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
             );
 
             expect(ctx.refreshService.refreshCache.notCalled).to.be.true;

@@ -28,10 +28,10 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import * as fs from 'fs';
 import Config from 'config';
 import Sequelize from 'sequelize';
 import logger from '../../utils/Logger.js';
+import { getSSLConfig } from './mysqlSslConfig.js';
 import FmspcTcbs from './fmspc_tcbs.js';
 import PckCert from './pck_cert.js';
 import PckCertchain from './pck_certchain.js';
@@ -47,16 +47,8 @@ import AppraisalPolicy from './appraisal_policy.js';
 import mysqlPromise from 'mysql2/promise.js';
 import clshooked from 'cls-hooked';
 
-const db_namespace = clshooked.createNamespace('pccs-db-namespace');
+const db_namespace = clshooked.createNamespace('ccs-db-namespace');
 Sequelize.useCLS(db_namespace);
-
-// get config options for ssl
-function getSSLConfig(sslConfig) {
-    if (sslConfig && sslConfig.required && fs.existsSync(sslConfig.ca)) {
-        return { ssl: { ca: fs.readFileSync(sslConfig.ca) } };
-    }
-    return null;
-}
 
 function initModels(sequelize) {
     FmspcTcbs.init(sequelize);
@@ -94,6 +86,24 @@ async function initializeDatabase() {
 
     try {
         await sequelize.authenticate();
+        if (Config.get('DB_CONFIG') === 'sqlite') {
+            // WAL (Write-Ahead Logging) mode: instead of blocking all readers during a write,
+            // writers append changes to a separate WAL file while readers continue reading
+            // the original database. This allows GET requests (e.g. /pckcert, /tcb) to be
+            // served without waiting for an ongoing refresh transaction to complete.
+            await sequelize.query('PRAGMA journal_mode = WAL;');
+            const walMode = await sequelize.query('PRAGMA journal_mode;');
+            logger.debug(`SQLite PRAGMA journal_mode set to: ${walMode[0][0].journal_mode}`);
+
+            // NORMAL synchronous mode: SQLite skips fsync after each individual write within
+            // a transaction, and only syncs at transaction commit. This is safe against
+            // application crashes (data is consistent on commit) but may lose the last
+            // committed transaction on OS crash or power failure. Acceptable for a cache
+            // that can be rebuilt via refresh. Reduces write latency vs the default FULL mode.
+            await sequelize.query('PRAGMA synchronous = NORMAL;');
+            const syncMode = await sequelize.query('PRAGMA synchronous;');
+            logger.debug(`SQLite PRAGMA synchronous set to: ${syncMode[0][0].synchronous}`);
+        }
     } catch (err) {
         if (Config.get('DB_CONFIG') === 'mysql') {
             // Handle MySQL specific error
@@ -115,7 +125,7 @@ async function handleMySQLError(dbConfig, dbOptions, err) {
             port:     dbOptions.port,
             user:     dbConfig.username,
             password: dbConfig.password,
-            ...getSSLConfig(dbConfig.ssl)
+            ...getSSLConfig(dbConfig.ssl) ?? {}
         };
         const connection = await mysqlPromise.createConnection(connOptions);
         await connection.query(

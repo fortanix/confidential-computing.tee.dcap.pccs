@@ -1,0 +1,28 @@
+Source: sgx-dcap-ccs
+Section: web
+Priority: optional
+Maintainer: Intel Confidential Computing Team <confidential.computing@intel.com>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+Homepage: https://github.com/intel/confidential-computing.tee.dcap.pccs
+
+Package: sgx-dcap-ccs
+Architecture: all
+#
+#  Note: NodeJS version constraint is deliberately lax, to allow for forward-compat
+#        As of time of this writing, we declare official support
+#        for Active LTS (v24) or Maintenance LTS (v22) versions
+Depends: nodejs (>= 22.13.0), npm, cracklib-runtime, adduser
+@legacy_provides@
+@legacy_replaces@
+@legacy_conflicts@
+#
+# ___
+# vvv - If openssl is present, it allows to auto-generate self-signed TLS certificates for HTTPS support
+#       at install-time
+# vvv - intel-tee-ccs-admin-tool is a recommended dependency (especially for managing pccs in REQ and OFFLINE modes).
+#       While, in some deployments, it is installed on a different host from the CCS system itself, it is considered
+#       a recommendation (weak dependency in RPM parlance) due to the practicality of having it also available on the localhost.
+#       Note the reverse is not true: CCS package is merely a *hint* for intel-tee-ccs-admin-tool.
+Recommends: intel-tee-ccs-admin-tool (>= @dep_version@), openssl
+Description: Intel(R) Software Guard Extensions PCK Caching Service

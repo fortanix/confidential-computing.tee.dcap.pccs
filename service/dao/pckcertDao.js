@@ -29,8 +29,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import PccsError from '../utils/PccsError.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsError from '../utils/CcsError.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 import { PckCert, sequelize } from './models/index.js';
 
 // Query a PCK Certificate
@@ -61,7 +61,7 @@ export async function getCert(qe_id, cpu_svn, pce_svn, pce_id) {
             return null;
         }
     } else {
-        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
     }
 }
 
