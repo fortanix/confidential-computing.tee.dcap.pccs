@@ -36,6 +36,7 @@ function makeControllerStubs() {
         refreshController:            { refreshCache: makeHandler('refreshCache') },
         crlController:                { getCrl: makeHandler('getCrl') },
         appraisalPolicyController:    { putAppraisalPolicy: makeHandler('putAppraisalPolicy'), getAppraisalPolicy: makeHandler('getAppraisalPolicy') },
+        healthController:             { getLiveness: makeHandler('getLiveness'), getReadiness: makeHandler('getReadiness'), getStartup: makeHandler('getStartup') },
     };
 }
 

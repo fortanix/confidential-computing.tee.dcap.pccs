@@ -2,12 +2,12 @@
    SPDX-License-Identifier: BSD-3-Clause */
 
 import { healthService } from '../services/index.js';
-import PccsStatus from '../constants/pccs_status_code.js';
+import CcsStatus from '../constants/ccs_status_code.js';
 
 export async function getLiveness(req, res, next) {
     try {
         res
-            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
             .send({
                 status:    'UP',
                 timestamp: new Date().toISOString(),
@@ -25,7 +25,7 @@ export async function getReadiness(req, res, next) {
         // send response
         if (db.ready) {
             res
-                .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+                .status(CcsStatus.CCS_STATUS_SUCCESS[0])
                 .send({
                     status:    'UP',
                     db:        'CONNECTED',
@@ -34,7 +34,7 @@ export async function getReadiness(req, res, next) {
                 });
         } else {
             res
-                .status(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0])
+                .status(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE[0])
                 .send({
                     status:    'DOWN',
                     db:        'DISCONNECTED',
@@ -53,8 +53,8 @@ export async function getStartup(req, res, next) {
 
         // send response
         const statusCode = started ?
-            PccsStatus.PCCS_STATUS_SUCCESS[0] :
-            PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0];
+            CcsStatus.CCS_STATUS_SUCCESS[0] :
+            CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE[0];
         res
             .status(statusCode)
             .send({
