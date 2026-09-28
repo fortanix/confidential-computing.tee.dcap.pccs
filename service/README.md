@@ -8,7 +8,6 @@
     - [Install via Linux Debian package installer](#install-via-linux-debian-package-installer)
     - [Install via RPM package installer](#install-via-rpm-package-installer)
     - [Linux manual installation](#linux-manual-installation)
-    - [Windows manual installation](#windows-manual-installation)
 - [Configuration file (`config/default.json`)](#configuration-file-configdefaultjson)
 - [Caching Fill Mode](#caching-fill-mode)
     - [LAZY mode](#lazy-mode)
@@ -119,45 +118,6 @@ To start the service and check its status, see section [Manage the CCS service](
 >
 > As an alternative to passing `--ca` on every Admin Tool command, you can set the `REQUESTS_CA_BUNDLE` environment variable to a CA certificate bundle file or directory. `CURL_CA_BUNDLE` is also honoured as a fallback.
 
-### Windows manual installation
-
-1. Put all the files and sub folders in this directory to your preferred place with right permissions set to launch a web service.
-2. (Optional) If the target machine connects to internet through a proxy server, configure proxy server first
-   before continuing. 
-   ``` batch
-   npm config set http-proxy http://your-proxy-server:port
-   npm config set https-proxy http://your-proxy-server:port
-   npm config set proxy http://your-proxy-server:port
-   ```
-
-3. Update config file based on your environment, see section [Configuration file](#configuration-file-configdefaultjson).
-
-4. Private key and public certificate
-
-   The CCS requires a private key and certificate pair to run as HTTPS server.
-   For production environment you should use formally issued key and certificate.
-   Please put the key files in `ssl_key` subdirectory.
-
-   You can also generate an insecure key and certificate pair with following commands (only for debug purpose):
-
-   ``` batch
-   if not exist ssl_key mkdir ssl_key
-   cd ssl_key
-   openssl genrsa -out private.pem 2048
-   openssl req -new -key private.pem -out csr.pem
-   openssl x509 -req -days 365 -in csr.pem -signkey private.pem -out file.crt
-   cd ..
-   ```
-
-5. From the root directory of your installation folder, run `install.bat`.
-6. If you want to run CCS as a system service, run `startup.bat` with administrator privilege.
-7. To start the service and check its status, see section [Manage the CCS service](#manage-the-ccs-service)
-
-> [!NOTE]
-> If a self-signed insecure key and certificate are used for CCS, you need to set `"use_secure_cert": false` when configuring the default QPL library (see [QPL README](https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/main/QuoteGeneration/qpl/README.md)).
-> Additionally, the TLS certificate verification done by the [CCS Admin Tool](../CcsAdminTool) will fail, because the tool uses the Python module `Requests`, which does not trust this self-signed certificate.
-> Optionally, use `--no-ccs-cert-check` to skip TLS certificate verification in this case.
-
 ## Configuration file *([`config/default.json`](./config/default.json))*
 
 - **`HTTPS_PORT`** - The port you want the CCS to listen on. The default listening port is `8081`.
@@ -177,22 +137,10 @@ To start the service and check its status, see section [Manage the CCS service](
 - **`KeepAliveTimeoutSeconds`** - Maximum idle time in seconds on a keep-alive connection before it is closed. Default value is 60.
 - **`PcsRequestTimeoutSeconds`** - Timeout in seconds for outbound requests to Intel PCS. Default value is 16.
 - **`PcsMaxRetryCount`** - Maximum retry count for outbound requests to Intel PCS. Default value is 2.
-
-
-> [!NOTE]
-> For Windows you need to set the UserTokenHash and AdminTokenHash manually. For example, you can calculate SHA512 hash using the following PowerShell snippet:
-
-  ``` powershell
-  [BitConverter]::ToString(
-    [System.Security.Cryptography.SHA512]::Create().ComputeHash(
-        [System.Text.Encoding]::UTF8.GetBytes((Read-Host "Type the secret token (password) to hash"))
-    )
-  ).Replace('-', '').ToLower()
-  ```
-
 - **`CachingFillMode`** - The method used to fill the cache DB. Can be one of the following: `LAZY`/`REQ`/`OFFLINE`. For more details see the section [Caching Fill Mode](#caching-fill-mode).
 - **`LogLevel`** - Log level. Use the same levels as npm: `error`, `warn`, `info`, `http`, `verbose`, `debug`, `silly`. Default is `info`.
 - **`DB_CONFIG`** - You can choose `sqlite` or `mysql` and many other DBMSes. For `sqlite`, you don't need to change anything. For other DBMSes, you need to set database connection options correctly. Normally you need to change database, username, password, host and dialect to connect to your DBMS.  
+
 > [!NOTE]
 > It's recommended to delete the cache database first if you have installed a version older than 1.9 because the database is not compatible.
 
@@ -241,7 +189,7 @@ You can test the CCS by running QuoteGeneration sample:
 For **Remote** service mode, you must use a formal key and certificate pair. The certificate must meet the following requirements:
 - The Certificate Authority (CA) certificate must have the `basicConstraints` extension with `CA:TRUE` and `keyUsage` extension with `keyCertSign`.
 - The leaf (server) certificate must have a Subject Alternative Name (SAN) matching the server address and `keyUsage` extension with `digitalSignature`.
-- The CA chain must be trusted by the clients connecting to the CCS. For the QPL library, set `"use_secure_cert": true` in `/etc/sgx_default_qcnl.conf` (For Windows see the OS-specific note of [QPL README](https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/main/QuoteGeneration/qpl#configuration)). For the [CCS Admin Tool](../CcsAdminTool), the CA chain must either be trusted by the CA bundle used by Python Requests on that system, or provided using the `--ca` option.
+- The CA chain must be trusted by the clients connecting to the CCS. For the QPL library, set `"use_secure_cert": true` in `/etc/sgx_default_qcnl.conf`. For the [CCS Admin Tool](../CcsAdminTool), the CA chain must either be trusted by the CA bundle used by Python Requests on that system, or provided using the `--ca` option.
 
 You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also make sure the firewall is not blocking your listening port.
 
@@ -266,18 +214,6 @@ You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also
    sudo journalctl -u ccs
    ```
 
-- If the CCS was installed as Windows service
-
-1. Check `Intel(R) Collateral Caching Service` status in Task Manager (Services tab) or in the Services management console (services.msc).
-2. Start/Stop the service from Task Manager (Services tab) or Services management console (services.msc)
-   or use the following commands in an administrator command prompt:
-   ``` batch
-   net start "Intel(R) Collateral Caching Service"
-   net stop "Intel(R) Collateral Caching Service"
-   ```
-3. Read application logs stored in `*.log` files in `daemon/` folder in service installation directory
-4. Service events can be found in Events Viewer in `Windows Logs` -> `Application` section by source `Intel(R) Collateral Caching Service`
-
 - If the CCS was installed manually by current user, you can start it with the following command:
   ``` bash
   NODE_ENV=production node ccs_server.js
@@ -299,10 +235,6 @@ You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also
     * On Linux
       ```bash
       ./uninstall.sh
-      ```
-    * On Windows (run with administrator privilege)
-      ```batch
-      uninstall.bat 
       ```
 
 ## Further reading

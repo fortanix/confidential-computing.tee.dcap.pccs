@@ -14,7 +14,6 @@
     "cls-hooked": "^4.2.2",
     "config": "^4.4.1",
     "core-js": "^3.49.0",
-    "cross-env": "^10.1.0",
     "express": "^5.2.1",
     "got": "^15.1.0",
     "https-proxy-agent": "^9.1.0",
@@ -51,7 +50,7 @@
     "uuid": "^11.1.1"
   },
   "scripts": {
-    "start": "cross-env NODE_ENV=production node ccs_server.js",
+    "start": "NODE_ENV=production node ccs_server.js",
     "test": "mocha",
     "eslint": "eslint",
     "eslintFix": "eslint --fix"
