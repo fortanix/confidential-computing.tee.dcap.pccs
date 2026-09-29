@@ -245,7 +245,7 @@ export async function getFileFromUrl(uri) {
         logger.info(
             `[File Download Finished][URL=${shortenUri}][ElapsedMs=${Date.now() - startedAt}]`
         );
-        return content;
+        return Buffer.from(content);
     } catch (err) {
         logger.error(
             `[File Download Failed][URL=${shortenUri}][ElapsedMs=${Date.now() - startedAt}]`
