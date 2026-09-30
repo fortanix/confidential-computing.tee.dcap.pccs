@@ -1,0 +1,8 @@
+PCCS_ADMIN_VERSION="1.0"
+TARBALL_NAME=intel-tee-pccs-admin-tool_1.0.orig.tar.gz
+
+PCCS_ADMIN_PACKAGE_PATH=/opt/intel
+PCCS_ADMIN_PACKAGE_NAME=intel-tee-pccs-admin-tool
+PCCS_ADMIN_PACKAGE_INSTALL_DIR_NAME=pccs-admin-tool
+PCCS_ADMIN_MAIN_SCRIPT_NAME=pccsadmin.py
+PCCS_ADMIN_WRAPPER_SCRIPT_NAME=pccs-admin-tool

@@ -30,8 +30,8 @@
  */
 
 import { refreshService, validatorService } from '../services/index.js';
-import CcsStatus from '../constants/ccs_status_code.js';
-import CcsError from '../utils/CcsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
 import logger from '../utils/Logger.js';
 
 export async function refreshCache(req, res, next) {
@@ -41,7 +41,7 @@ export async function refreshCache(req, res, next) {
 
         if (type && type !== 'certs') {
             logger.error(`Invalid refresh type : ${type}`);
-            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
         if (type) {
             fmspc = validatorService.validateAndNormalizeFmspc(fmspc);
@@ -52,8 +52,8 @@ export async function refreshCache(req, res, next) {
 
         // send response
         res
-            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
-            .send(CcsStatus.CCS_STATUS_SUCCESS[1]);
+            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
+            .send(PccsStatus.PCCS_STATUS_SUCCESS[1]);
     } catch (err) {
         next(err);
     }

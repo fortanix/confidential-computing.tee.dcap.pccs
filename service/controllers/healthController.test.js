@@ -4,7 +4,7 @@
 import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 
 class TestContext extends ControllerTestContext {
     constructor() {
@@ -31,7 +31,7 @@ describe('healthController', () => {
 
             await target.getLiveness(ctx.getRequest(), ctx.response, ctx.next);
 
-            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
             expect(ctx.response.send.calledWith(sinon.match({ status: 'UP' }))).to.be.true;
             // a database outage must not restart the process, so nothing is queried here
             expect(ctx.healthService.checkDbReady.called).to.be.false;
@@ -46,7 +46,7 @@ describe('healthController', () => {
 
             await target.getReadiness(ctx.getRequest(), ctx.response, ctx.next);
 
-            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
             expect(ctx.response.send.calledWith(sinon.match({
                 status:  'UP',
                 db:      'CONNECTED',
@@ -61,7 +61,7 @@ describe('healthController', () => {
 
             await target.getReadiness(ctx.getRequest(), ctx.response, ctx.next);
 
-            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE[0])).to.be.true;
+            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0])).to.be.true;
             expect(ctx.response.send.calledWith(sinon.match({
                 status: 'DOWN',
                 db:     'DISCONNECTED'
@@ -78,7 +78,7 @@ describe('healthController', () => {
 
             await target.getStartup(ctx.getRequest(), ctx.response, ctx.next);
 
-            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
             expect(ctx.response.send.calledWith(sinon.match({ status: 'STARTED' }))).to.be.true;
         });
 
@@ -89,7 +89,7 @@ describe('healthController', () => {
 
             await target.getStartup(ctx.getRequest(), ctx.response, ctx.next);
 
-            expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE[0])).to.be.true;
+            expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0])).to.be.true;
             expect(ctx.response.send.calledWith(sinon.match({ status: 'STARTING' }))).to.be.true;
         });
 

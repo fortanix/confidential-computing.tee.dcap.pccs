@@ -1,0 +1,7 @@
+DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
+<deliverydir>/PccsAdminTool/License.txt	<installdir>/License.txt	0	main	STP
+<deliverydir>/PccsAdminTool/pccsadmin.py	<installdir>/pccsadmin.py	0	main	STP
+<deliverydir>/PccsAdminTool/README.txt	<installdir>/README.txt	0	main	STP
+<deliverydir>/PccsAdminTool/requirements.txt	<installdir>/requirements.txt	0	main	STP
+<deliverydir>/PccsAdminTool/lib/__init__.py	<installdir>/lib/__init__.py	0	main	STP
+<deliverydir>/PccsAdminTool/lib/intelsgx/credential.py	<installdir>/lib/intelsgx/credential.py	0	main	STP

@@ -36,21 +36,18 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-#Remove CCS system service
-echo -n "Uninstalling CCS service... "
+#Remove PCCS system service
+echo -n "Uninstalling PCCS service... "
 if [ -d /run/systemd/system ]; then
-    systemctl stop ccs || true
-    systemctl disable ccs || true
+    systemctl stop pccs || true
+    systemctl disable pccs || true
     systemctl daemon-reload
 elif [ -d /etc/init/ ]; then
     /sbin/initctl reload-configuration
 fi
 echo "finished."
 
-CCS_HOME=$(cd "$(dirname "$0")" && pwd -P)
-
+PCCS_HOME=$(cd "$(dirname "$0")" && pwd -P)
 echo -n "Removing node_modules... "
-rm -rf "${CCS_HOME}/node_modules"
-rm -f "${CCS_HOME}/.npmrc"
-rm -rf "${CCS_HOME}/.npm"
+rm -rf "${PCCS_HOME}/node_modules"
 echo "finished."

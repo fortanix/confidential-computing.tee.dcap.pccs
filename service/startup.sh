@@ -40,7 +40,7 @@ fi
 get_manual_command() {
     # Generate a command to run a command as a specific user (accounting for availability of 'su' or 'sudo')
     local cmd="$1"
-    local user="${2:-$CCS_USER}"
+    local user="${2:-$PCCS_USER}"
     if [ -x /bin/su ]; then
         echo "/bin/su - ${user} -c '${cmd}'"
     else
@@ -65,49 +65,47 @@ else
     RESET=''
 fi
 
-CCS_USER=ccs
-CCS_HOME=$(readlink -m $(dirname "$0"))
+PCCS_USER=pccs
+PCCS_HOME=$(readlink -m $(dirname "$0"))
 if [ "$1" == "debian" ]; then
-    adduser --quiet --system $CCS_USER --group --home $CCS_HOME --no-create-home --shell /bin/bash
+    adduser --quiet --system $PCCS_USER --group --home $PCCS_HOME --no-create-home --shell /bin/bash
 else
-    if ! getent group "$CCS_USER" >/dev/null 2>&1; then
-        groupadd "$CCS_USER"
+    if [ ! $(getent group $PCCS_USER) ]; then
+        groupadd $PCCS_USER
     fi
-    if ! getent passwd "$CCS_USER" >/dev/null 2>&1; then
+    if ! id "$PCCS_USER" &>/dev/null; then
         if command -v adduser &>/dev/null; then
-            adduser --system "$CCS_USER" -g "$CCS_USER" --home "$CCS_HOME" --no-create-home --shell /bin/bash
+            adduser --system $PCCS_USER -g $PCCS_USER --home $PCCS_HOME --no-create-home --shell /bin/bash
         else
-            useradd -r -g "$CCS_USER" -d "$CCS_HOME" -s /bin/bash "$CCS_USER"
+            useradd -r -g $PCCS_USER -d $PCCS_HOME -s /bin/bash $PCCS_USER
         fi
     fi
 fi
-chown -R "$CCS_USER:$CCS_USER" "$CCS_HOME"
-if [ -f "$CCS_HOME/config/default.json" ]; then
-    chmod 640 "$CCS_HOME/config/default.json"
-fi
+chown -R $PCCS_USER:$PCCS_USER $PCCS_HOME
+chmod 640 $PCCS_HOME/config/default.json
 if [ "$1" == "debian" -a "${DEBIAN_FRONTEND}" != "noninteractive" ]
 then
-    /bin/su -c "$CCS_HOME/install.sh" "$CCS_USER"
+    /bin/su -c "$PCCS_HOME/install.sh" $PCCS_USER
 else
     echo -e "$(cat <<EOF
 
 ${YELLOW}┌───────────────────────────────────────────────────────────────────────────────┐
 │  ${RED}WARNING:${YELLOW} Non-interactive installation!                                       │
-│           CCS post-install configuration has been SKIPPED.                   │
+│           PCCS post-install configuration has been SKIPPED.                   │
 └───────────────────────────────────────────────────────────────────────────────┘${RESET}
 ┋ You need to configure the service manually before 1st startup. For example, by running: 
-┋    ${CYAN}$(get_manual_command "$CCS_HOME/install.sh")${RESET}
+┋    ${CYAN}$(get_manual_command "$PCCS_HOME/install.sh")${RESET}
 ┋
 EOF
     )"
 fi
-#Install CCS as system service
-echo -n "Installing CCS service ..."
+#Install PCCS as system service
+echo -n "Installing PCCS service ..."
 if [ -d /run/systemd/system ]; then
     systemctl daemon-reload
-    systemctl enable ccs
+    systemctl enable pccs
     if [ "$1" == "debian" ]; then 
-        systemctl start ccs
+        systemctl start pccs
     fi
 elif [ -d /etc/init/ ]; then
     /sbin/initctl reload-configuration
@@ -118,10 +116,10 @@ else
 
 ${GRAY}┌───────────────────────────────────────────────────────────────────────────────┐
 │  ${MAGENTA}NOTICE:${GRAY} Running inside a container (without systemd or init).                │
-│          CCS service (daemon) startup has been SKIPPED.                      │
+│          PCCS service (daemon) startup has been SKIPPED.                      │
 └───────────────────────────────────────────────────────────────────────────────┘${RESET}
-┋ You can start CCS manually by running: 
-┋    ${CYAN}$(get_manual_command "cd ${CCS_HOME} && NODE_ENV=production /usr/bin/node ./ccs_server.js")${RESET}
+┋ You can start PCCS manually by running: 
+┋    ${CYAN}$(get_manual_command "cd ${PCCS_HOME} && NODE_ENV=production /usr/bin/node ./pccs_server.js")${RESET}
 ┋
 EOF
         )"

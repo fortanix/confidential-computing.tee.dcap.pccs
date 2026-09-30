@@ -5,7 +5,7 @@ import esmock from 'esmock';
 import { expect } from 'chai';
 import assert from 'assert/strict';
 import sinon from 'sinon';
-import CcsStatus from '../../constants/ccs_status_code.js';
+import PccsStatus from '../../constants/pccs_status_code.js';
 import Constants from '../../constants/index.js';
 import * as responseBodyUtil from '../../utils/responseBody.js';
 
@@ -24,7 +24,7 @@ const CRL_DATA     = Buffer.from('crl-data');
 const CDP_URI      = 'https://certificates.trustedservices.intel.com/IntelSGXRootCA.crl';
 
 
-class MockCcsError extends Error {
+class MockPccsError extends Error {
     constructor(obj) {
         super(obj[1]);
         this.status = obj[0];
@@ -158,8 +158,8 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./commonCacheLogic.js', {
-            '../../utils/CcsError.js':                    { 'default': MockCcsError },
-            '../../constants/ccs_status_code.js':         { 'default': CcsStatus },
+            '../../utils/PccsError.js':                   { 'default': MockPccsError },
+            '../../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../../constants/index.js':                   { 'default': Constants },
             '../../utils/Logger.js':                      { 'default': this.logger },
             '../../utils/responseBody.js':                responseBodyUtil,
@@ -202,7 +202,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, null, null),
-                CcsStatus.CCS_STATUS_INVALID_REQ
+                PccsStatus.PCCS_STATUS_INVALID_REQ
             );
         });
 
@@ -212,7 +212,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, '0'.repeat(768), null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -243,7 +243,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -255,7 +255,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -283,7 +283,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -374,7 +374,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -385,7 +385,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -457,7 +457,7 @@ describe('commonCacheLogic', () => {
             expect(responseBodyUtil.parsePckServerResponseBody(bytes.buffer)).to.deep.equal(certArray);
             assert.throws(
                 () => responseBodyUtil.parsePckServerResponseBody(null),
-                err => err.status === CcsStatus.CCS_STATUS_INTERNAL_ERROR[0]
+                err => err.status === PccsStatus.PCCS_STATUS_INTERNAL_ERROR[0]
             );
         });
 
@@ -477,7 +477,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -490,7 +490,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCertFromPCS(QEID, CPUSVN, PCESVN, PCEID, ENC_PPID, null),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -518,7 +518,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getPckCrlFromPCS(Constants.CA_PROCESSOR),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -553,7 +553,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getTcbInfoFromPCS(Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_STANDARD),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -601,7 +601,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getEnclaveIdentityFromPCS(Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_STANDARD),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -670,7 +670,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getRootCACrlFromPCS(rootca),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -682,7 +682,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getRootCACrlFromPCS(rootca),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -694,7 +694,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getRootCACrlFromPCS(rootca),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -743,7 +743,7 @@ describe('commonCacheLogic', () => {
 
             await rejectsWithStatus(
                 () => getCrlFromPCS('http://evil.example.com/crl'),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 

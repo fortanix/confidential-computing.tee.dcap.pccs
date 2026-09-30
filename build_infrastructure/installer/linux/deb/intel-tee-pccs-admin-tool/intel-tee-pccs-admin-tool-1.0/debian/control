@@ -1,0 +1,22 @@
+Source: intel-tee-pccs-admin-tool
+Section: python
+Priority: optional
+Maintainer: Intel Confidential Computing Team <confidential.computing@intel.com>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.5
+Homepage: https://github.com/intel/confidential-computing.tee.dcap.pccs
+
+Package: intel-tee-pccs-admin-tool
+Provides: pccs-admin-tool
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-venv, python3-pip, bash, coreutils
+# ___
+# vvv - sgx-dcap-pccs is a reverse weak dependency (not installed by default by package managers).
+#       This is because pccs-admin-tool can be installed on a different host from the PCCS system itself.
+Enhances: sgx-dcap-pccs (>= @dep_version@)
+# ___
+# vvv - pcs-client-tool is a weak dependency aka. hint (not installed by default by package managers).
+#       It is not used on the same machine as pccs-admin-tool in most deployments, but can work in tandem with it for certain air-gapped scenarios.
+Suggests: intel-tee-pcs-client-tool (>= @dep_version@)
+Description: Intel(R) Provisioning Certificate Caching Service (PCCS) Admin Tool
+ This package provides the pccs-admin-tool executable (python script) for administering PCCS.

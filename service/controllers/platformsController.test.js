@@ -5,7 +5,7 @@ import ControllerTestContext from './ControllerTestContext.js';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import assert from 'assert/strict';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 
 class TestContext extends ControllerTestContext {
@@ -54,7 +54,7 @@ class TestContext extends ControllerTestContext {
     }
 
     verifyGetPlatformsResponse(platforms) {
-        expect(this.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+        expect(this.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
         expect(this.response.header.calledWith('platform-count', platforms.length)).to.be.true;
         expect(this.response.send.calledWith(platforms)).to.be.true;
     }
@@ -105,8 +105,8 @@ describe('platformsController', () => {
                 await target.postPlatforms(ctx.getPostRequest(), ctx.response, ctx.next);
 
                 expect(ctx.platformsRegService.registerPlatforms.calledWith(ctx.body, Constants.UPDATE_TYPE_ALL)).to.be.true;
-                expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
-                expect(ctx.response.send.calledWith(CcsStatus.CCS_STATUS_SUCCESS[1])).to.be.true;
+                expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+                expect(ctx.response.send.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[1])).to.be.true;
             });
 
             it('positive with default STANDARD update type', async() => {
@@ -117,8 +117,8 @@ describe('platformsController', () => {
                 await target.postPlatforms(ctx.getPostRequest(), ctx.response, ctx.next);
 
                 expect(ctx.platformsRegService.registerPlatforms.calledWith(ctx.body, Constants.UPDATE_TYPE_STANDARD)).to.be.true;
-                expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
-                expect(ctx.response.send.calledWith(CcsStatus.CCS_STATUS_SUCCESS[1])).to.be.true;
+                expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+                expect(ctx.response.send.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[1])).to.be.true;
             });
         });
 
@@ -130,7 +130,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.postPlatforms(ctx.getPostRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 expect(ctx.platformsRegService.registerPlatforms.notCalled).to.be.true;
@@ -208,7 +208,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });
@@ -221,7 +221,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });
@@ -234,7 +234,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });
@@ -247,7 +247,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });
@@ -260,7 +260,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });
@@ -273,7 +273,7 @@ describe('platformsController', () => {
 
                 await assert.rejects(
                     () => target.getPlatforms(ctx.getGetRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 ctx.verifyGetPlatformsMocks({ });

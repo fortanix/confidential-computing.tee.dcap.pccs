@@ -30,8 +30,8 @@
  */
 
 import Constants from '../constants/index.js';
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import { FmspcTcbs, sequelize } from './models/index.js';
 import Sequelize from 'sequelize';
 
@@ -51,7 +51,7 @@ export async function upsertFmspcTcb(tcbinfoJson) {
 //Query TCBInfo by fmspc
 export async function getTcbInfo(type, fmspc, version, update_type) {
     if (typeof type === 'undefined' || typeof version === 'undefined' || typeof update_type === 'undefined') {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     const sql =
@@ -81,7 +81,7 @@ export async function getTcbInfo(type, fmspc, version, update_type) {
             return null;
         }
     } else {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 }
 

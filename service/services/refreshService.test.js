@@ -5,7 +5,7 @@ import esmock from 'esmock';
 import { expect } from 'chai';
 import assert from 'assert/strict';
 import sinon from 'sinon';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 import * as responseBodyUtil from '../utils/responseBody.js';
 
@@ -22,7 +22,7 @@ const ISSUER_CHAIN = 'issuer-chain';
 const CRL_DATA     = Buffer.from('crl-data');
 const CDP_URI      = 'https://certificates.trustedservices.intel.com/IntelSGXRootCA.crl';
 
-class MockCcsError extends Error {
+class MockPccsError extends Error {
     constructor(obj) {
         super(obj[1]);
         this.status = obj[0];
@@ -172,8 +172,8 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./refreshService.js', {
-            '../utils/CcsError.js':                    { 'default': MockCcsError },
-            '../constants/ccs_status_code.js':         { 'default': CcsStatus },
+            '../utils/PccsError.js':                   { 'default': MockPccsError },
+            '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
             '../utils/Logger.js':                      { 'default': this.logger },
             '../utils/responseBody.js':                responseBodyUtil,
@@ -223,7 +223,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('certs', FMSPC),
-                CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE
+                PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE
             );
         });
 
@@ -267,7 +267,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('certs', FMSPC),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -280,7 +280,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('certs', FMSPC),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -291,7 +291,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('certs', FMSPC),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -302,7 +302,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('certs', FMSPC),
-                CcsStatus.CCS_STATUS_NO_CACHE_DATA
+                PccsStatus.PCCS_STATUS_NO_CACHE_DATA
             );
         });
 
@@ -395,7 +395,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE
+                PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE
             );
         });
 
@@ -452,7 +452,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -463,7 +463,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -475,7 +475,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -486,7 +486,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_INTERNAL_ERROR
+                PccsStatus.PCCS_STATUS_INTERNAL_ERROR
             );
         });
 
@@ -510,7 +510,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE
+                PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE
             );
         });
 
@@ -521,7 +521,7 @@ describe('refreshService', () => {
 
             await rejectsWithStatus(
                 () => refreshCache('collateral', undefined),
-                CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE
+                PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE
             );
         });
 

@@ -58,7 +58,7 @@ function makeAuthStub() {
     };
 }
 
-// Dependencies of ccs_server that must not run for real when imported by a test.
+// Dependencies of pccs_server that must not run for real when imported by a test.
 function makeServerDependencyMocks() {
     return {
         './utils/apputil.js': {
@@ -90,7 +90,7 @@ describe('auth bypass regression (duplicate slashes)', () => {
         controllers = makeControllerStubs();
         authStub = makeAuthStub();
 
-        const serverModule = await esmock.strict('./ccs_server.js', makeServerDependencyMocks(), {
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
             './controllers/index.js': controllers,
             './middleware/auth.js':   authStub,
         });

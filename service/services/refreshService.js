@@ -29,8 +29,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 import Config from 'config';
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 import logger from '../utils/Logger.js';
 import X509 from '../x509/x509.js';
@@ -157,7 +157,7 @@ async function fetchAllPckcerts(fmspcCsv) {
 
         // check HTTP status
         if (pckServerCertsRes.statusCode !== Constants.HTTP_SUCCESS) {
-            throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+            throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
         }
 
         const pckCertChain = pcsClient.getHeaderValue(
@@ -169,7 +169,7 @@ async function fetchAllPckcerts(fmspcCsv) {
         const pckcerts = JSON.parse(pckServerCertsRes.body);
         if (pckcerts.length === 0) {
             logger.error("The response body doesn't include PCK certificates.");
-            throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+            throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
         }
 
         // Get fmspc and ca type from response header
@@ -184,7 +184,7 @@ async function fetchAllPckcerts(fmspcCsv) {
 
         if (typeof fmspcHeader !== 'string' || typeof caTypeHeader !== 'string') {
             logger.error("The response header doesn't include fmspc or ca.");
-            throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+            throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
         }
 
         const fmspc = fmspcHeader.toUpperCase();
@@ -198,7 +198,7 @@ async function fetchAllPckcerts(fmspcCsv) {
             Constants.UPDATE_TYPE_EARLY
         );
         if (pckServerTcbRes.statusCode !== Constants.HTTP_SUCCESS) {
-            throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+            throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
         }
 
         const tcbInfoObj = JSON.parse(pckServerTcbRes.body).tcbInfo;
@@ -213,7 +213,7 @@ async function fetchAllPckcerts(fmspcCsv) {
             try {
                 selectedPckCert = selectBestPckCert(platformTcb.cpu_svn, platformTcb.pce_svn, platformTcb.pce_id, decodedCerts, tcbInfoObj);
             } catch {
-                throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+                throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
             }
 
             return {
@@ -287,7 +287,7 @@ async function fetchOneCrl(ca) {
             headers:    pckServerRes.headers
         };
     } else {
-        throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
+        throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 }
 
@@ -317,18 +317,18 @@ async function fetchRootcaCrl() {
         Constants.ROOT_CERT_ID
     );
     if (!rootca) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     const x509 = new X509();
     if (!x509.parseCert(decodeURIComponent(rootca.cert)) || !x509.cdpUri) {
         logger.error('Invalid PCS certificate.');
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     if (!appUtil.isValidCrlUri(x509.cdpUri)) {
         logger.error('Invalid CDP URI.');
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     const crl = await pcsClient.getFileFromUrl(x509.cdpUri);
@@ -428,7 +428,7 @@ async function persistAllTcbs(downloadedTcbInfos) {
         }
 
         logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
-        throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
+        throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }));
 }
 
@@ -438,7 +438,7 @@ const activeRefreshes = new Map();
 
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
-        throw new CcsError(CcsStatus.CCS_STATUS_SERVICE_UNAVAILABLE);
+        throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
     const lockKey = `${type ?? 'collateral'}:${fmspc ?? '*'}`;

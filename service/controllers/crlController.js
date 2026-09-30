@@ -30,8 +30,8 @@
  */
 
 import { crlService } from '../services/index.js';
-import CcsStatus from '../constants/ccs_status_code.js';
-import CcsError from '../utils/CcsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
 import logger from '../utils/Logger.js';
 import { isValidCrlUri } from '../utils/apputil.js';
 
@@ -43,13 +43,13 @@ export async function getCrl(req, res, next) {
         const uri = req.query.uri;
         if (!uri || uri.length > MAX_URL_LENGTH) {
             logger.error(`uri is not valid : ${uri}`);
-            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
 
         // validate uri
         if (!isValidCrlUri(uri)) {
             logger.error(`uri is not valid : ${uri}`);
-            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
 
         // call service
@@ -57,7 +57,7 @@ export async function getCrl(req, res, next) {
 
         // send response
         res
-            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
+            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
             .header('Content-Type', 'application/pkix-crl')
             .send(crl);
     } catch (err) {

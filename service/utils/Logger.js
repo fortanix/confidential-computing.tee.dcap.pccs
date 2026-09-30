@@ -61,7 +61,7 @@ export function formatLogMessage(tokens, req, res) {
 const options = {
     file: {
         level:            Config.has('LogLevel') ? Config.get('LogLevel') : 'info',
-        filename:         path.join(scriptDirname, '../logs/ccs_server.log'),
+        filename:         path.join(scriptDirname, '../logs/pccs_server.log'),
         handleExceptions: true,
         json:             false,
         colorize:         true,

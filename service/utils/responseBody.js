@@ -1,8 +1,8 @@
 /* Copyright(c) 2026 Intel Corporation
     SPDX-License-Identifier: BSD-3-Clause */
 
-import CcsError from './CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from './PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 import logger from './Logger.js';
 
@@ -22,13 +22,13 @@ export function getBodyBuffer(response) {
     }
 
     logger.error(`Unsupported response body type: ${typeof body}`);
-    throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+    throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
 }
 
 export function parsePckServerResponseBody(body) {
     if (body === null || body === undefined) {
         logger.error('Unrecognized server response.');
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     if (typeof body === 'string') {
@@ -44,7 +44,7 @@ export function parsePckServerResponseBody(body) {
     }
 
     logger.error('Unrecognized server response.');
-    throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+    throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
 }
 
 export function isSuccessfulResponseWithBody(response) {

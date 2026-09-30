@@ -1,9 +1,0 @@
-CCS_ADMIN_VERSION="1.0"
-TARBALL_NAME=intel-tee-ccs-admin-tool_1.0.orig.tar.gz
-
-INTEL_PACKAGES_PATH=/opt/intel
-CCS_ADMIN_PACKAGE_NAME=intel-tee-ccs-admin-tool
-LEGACY_PCCS_ADMIN_PACKAGE_NAME=intel-tee-pccs-admin-tool
-CCS_ADMIN_PACKAGE_INSTALL_DIR_NAME=ccs-admin-tool
-CCS_ADMIN_MAIN_SCRIPT_NAME=ccsadmin.py
-CCS_ADMIN_WRAPPER_SCRIPT_NAME=ccs-admin-tool

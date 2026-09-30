@@ -4,7 +4,7 @@
 import esmock from 'esmock';
 import { expect } from 'chai';
 import sinon from 'sinon';
-import CcsError from '../utils/CcsError.js';
+import PccsError from '../utils/PccsError.js';
 
 class TestContext {
     constructor() {
@@ -58,31 +58,31 @@ describe('auth', () => {
                 expect(c.next.calledOnce).to.be.true;
             });
 
-            it(`should throw CCS_STATUS_UNAUTHORIZED when ${testData.titleTokenName} not provided even when not set in config`, async() => {
+            it(`should throw PCCS_STATUS_UNAUTHORIZED when ${testData.titleTokenName} not provided even when not set in config`, async() => {
                 const c = new TestContext();
                 c.req.headers[testData.authHeaderName] = '';
                 c.Config.set(testData.configHashEntry, '');
                 const target = await c.getTarget();
 
-                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(CcsError, /Authentication failed/);
+                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(PccsError, /Authentication failed/);
                 expect(c.next.notCalled).to.be.true;
             });
 
-            it(`should throw CCS_STATUS_UNAUTHORIZED when ${testData.titleTokenName} does not match`, async() => {
+            it(`should throw PCCS_STATUS_UNAUTHORIZED when ${testData.titleTokenName} does not match`, async() => {
                 const c = new TestContext();
                 c.req.headers[testData.authHeaderName] = 'wrong';
                 const target = await c.getTarget();
 
-                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(CcsError, /Authentication failed/);
+                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(PccsError, /Authentication failed/);
                 expect(c.next.notCalled).to.be.true;
             });
 
-            it(`should throw CCS_STATUS_UNAUTHORIZED when ${testData.configHashEntry} not set in config`, async() => {
+            it(`should throw PCCS_STATUS_UNAUTHORIZED when ${testData.configHashEntry} not set in config`, async() => {
                 const c = new TestContext();
                 c.Config = new Map();
                 const target = await c.getTarget();
 
-                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(CcsError, /Authentication failed/);
+                expect(() => testData.func(target)(c.req, c.res, c.next)).to.throw(PccsError, /Authentication failed/);
                 expect(c.next.notCalled).to.be.true;
             });
         });

@@ -31,8 +31,8 @@
 
 import { PcsCertificates } from './models/index.js';
 import Constants from '../constants/index.js';
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 
 // Update or insert a PCS certificate
 export async function upsertPcsCertificates(pcsCertJson) {
@@ -67,7 +67,7 @@ export async function upsertPcsCertificatesById(id, cert) {
 async function upsertPcsCertchain(certchain, first_cert_id, second_cert_id) {
     const certs = split_chain(certchain);
     if (certs === null) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
     }
     await upsertPcsCertificatesById(first_cert_id, certs[0]);
     await upsertPcsCertificatesById(second_cert_id, certs[1]);
@@ -77,7 +77,7 @@ async function upsertPcsCertchain(certchain, first_cert_id, second_cert_id) {
 // Update or insert pck-certificate-issuer-chain
 export async function upsertPckCertificateIssuerChain(ca, pck_certchain) {
     if (ca !== Constants.CA_PROCESSOR && ca !== Constants.CA_PLATFORM) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     return await upsertPcsCertchain(
         pck_certchain,
@@ -91,7 +91,7 @@ export async function upsertPckCertificateIssuerChain(ca, pck_certchain) {
 // Update or insert pck-crl-issuer-chain
 export async function upsertPckCrlCertchain(ca, pck_crl_certchain) {
     if (ca !== Constants.CA_PROCESSOR && ca !== Constants.CA_PLATFORM) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     return await upsertPcsCertchain(
         pck_crl_certchain,

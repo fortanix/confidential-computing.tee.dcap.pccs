@@ -1,0 +1,20 @@
+[Unit]
+Description=Provisioning Certificate Caching Service (PCCS)
+Documentation=https://github.com/intel/confidential-computing.tee.dcap.pccs/blob/main/service/README.md
+After=network.target
+
+[Service]
+Type=simple
+User=pccs
+WorkingDirectory=/opt/intel/sgx-dcap-pccs/
+EnvironmentFile=-/usr/etc/environment
+EnvironmentFile=-/etc/environment
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/intel/sgx-dcap-pccs/pccs_server.js
+Restart=on-failure
+RestartSec=15s
+MemoryMax=1G
+MemoryHigh=512M
+
+[Install]
+WantedBy=multi-user.target

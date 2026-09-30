@@ -3,7 +3,7 @@
 
 import { expect } from 'chai';
 import sinon from 'sinon';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import assert from 'assert/strict';
 import ControllerTestContext from './ControllerTestContext.js';
 
@@ -47,7 +47,7 @@ describe('appraisalPolicyController', () => {
                 await target.getAppraisalPolicy(ctx.getAppraisalPolicyRequest(), ctx.response, ctx.next);
 
                 expect(ctx.appraisalPolicyService.getDefaultAppraisalPolicies.calledWith(ctx.fmspc.toUpperCase())).to.be.true;
-                expect(ctx.response.status.calledWith(CcsStatus.CCS_STATUS_SUCCESS[0])).to.be.true;
+                expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
                 expect(ctx.response.send.calledWith(ctx.expectedPolicies())).to.be.true;
             });
         });
@@ -61,7 +61,7 @@ describe('appraisalPolicyController', () => {
 
                 await assert.rejects(
                     () => target.getAppraisalPolicy(ctx.getAppraisalPolicyRequest(), ctx.response, ctx.next),
-                    (err) => err.status === CcsStatus.CCS_STATUS_INVALID_REQ[0]
+                    (err) => err.status === PccsStatus.PCCS_STATUS_INVALID_REQ[0]
                 );
 
                 expect(ctx.appraisalPolicyService.getDefaultAppraisalPolicies.notCalled).to.be.true;

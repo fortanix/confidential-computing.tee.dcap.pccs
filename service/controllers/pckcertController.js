@@ -30,7 +30,7 @@
  */
 
 import { pckcertService, validatorService } from '../services/index.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 
 export async function getPckCert(req, res, next) {
@@ -54,7 +54,7 @@ export async function getPckCert(req, res, next) {
 
         // send response
         res
-            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
+            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
             .header(Constants.SGX_TCBM, pckcertJson[Constants.SGX_TCBM])
             .header(Constants.SGX_FMSPC, pckcertJson[Constants.SGX_FMSPC])
             .header(

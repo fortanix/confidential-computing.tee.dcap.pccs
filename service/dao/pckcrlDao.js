@@ -30,8 +30,8 @@
  */
 
 import Constants from '../constants/index.js';
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import { PckCrl, sequelize } from './models/index.js';
 
 //Query a PCK CRL by ca
@@ -55,7 +55,7 @@ export async function getPckCrl(ca) {
             return null;
         }
     } else {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 }
 
@@ -74,7 +74,7 @@ export async function getAllPckCrls() {
 //Update or Insert a PCK CRL
 export async function upsertPckCrl(ca, crl) {
     if (ca !== Constants.CA_PROCESSOR && ca !== Constants.CA_PLATFORM) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     return await PckCrl.upsert({

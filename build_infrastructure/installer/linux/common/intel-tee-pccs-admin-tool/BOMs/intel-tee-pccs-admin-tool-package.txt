@@ -1,0 +1,3 @@
+DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
+<deliverydir>/build_infrastructure/installer/linux/common/intel-tee-pccs-admin-tool/installConfig	<installdir>/installConfig	0	main	STP
+<deliverydir>/build_infrastructure/installer/linux/common/intel-tee-pccs-admin-tool/Makefile	<installdir>/Makefile	0	main	STP

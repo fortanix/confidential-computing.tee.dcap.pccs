@@ -32,8 +32,8 @@
 import Config from 'config';
 import got from 'got';
 import logger, { parseAndShortenUrlForLogging } from '../utils/Logger.js';
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 import { sanitizedProxyForLogging, httpsProxyAgent } from './proxy.js';
 
@@ -49,7 +49,7 @@ async function doRequest(url, options) {
     const startedAt = Date.now();
     try {
         if (url.indexOf('/v3/') >= 0) {
-            throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
+            throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
         }
 
         // check for early access portal
@@ -89,7 +89,7 @@ async function doRequest(url, options) {
 
         return response;
     } catch (err) {
-        if (err.status === CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL[0]) {
+        if (err.status === PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL[0]) {
             throw err;
         }
         logger.error(`[PCS Request Failed][URL=${shortenUrl}][ElapsedMs=${Date.now() - startedAt}]`);
@@ -98,7 +98,7 @@ async function doRequest(url, options) {
         if (err.response && err.response.headers) {
             logger.info(`Request-ID is : ${err.response.headers['request-id']}`);
         }
-        throw new CcsError(CcsStatus.CCS_STATUS_PCS_ACCESS_FAILURE);
+        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_ACCESS_FAILURE);
     }
 }
 
@@ -167,14 +167,14 @@ export async function getPckCrl(ca) {
 
 export async function getTcb(type, fmspc, version, updateType) {
     if (version === 3) {
-        throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
+        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
     if (type !== Constants.PROD_TYPE_SGX && type !== Constants.PROD_TYPE_TDX) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
     if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 
@@ -196,17 +196,17 @@ export async function getTcb(type, fmspc, version, updateType) {
 
 export async function getEnclaveIdentity(enclaveId, version, updateType) {
     if (version === 3) {
-        throw new CcsError(CcsStatus.CCS_STATUS_PCS_V3_REACHED_EOL);
+        throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
     if (
         enclaveId !== Constants.QE_IDENTITY_ID &&
         enclaveId !== Constants.QVE_IDENTITY_ID &&
         enclaveId !== Constants.TDQE_IDENTITY_ID
     ) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
-        throw new CcsError(CcsStatus.CCS_STATUS_INTERNAL_ERROR);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 

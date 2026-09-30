@@ -30,7 +30,7 @@
  */
 
 import { rootcacrlService } from '../services/index.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 
 export async function getRootCaCrl(req, res, next) {
     try {
@@ -39,7 +39,7 @@ export async function getRootCaCrl(req, res, next) {
 
         // send response
         res
-            .status(CcsStatus.CCS_STATUS_SUCCESS[0])
+            .status(PccsStatus.PCCS_STATUS_SUCCESS[0])
             .header('Content-Type', 'application/pkix-crl')
             .send(rootcacrl);
     } catch (err) {

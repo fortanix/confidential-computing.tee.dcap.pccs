@@ -28,15 +28,15 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import CcsError from '../utils/CcsError.js';
-import CcsStatus from '../constants/ccs_status_code.js';
+import PccsError from '../utils/PccsError.js';
+import PccsStatus from '../constants/pccs_status_code.js';
 import Constants from '../constants/index.js';
 import logger from '../utils/Logger.js';
 import Ajv from 'ajv';
 import * as platformsRegDao from '../dao/platformsRegDao.js';
 import * as platformsDao from '../dao/platformsDao.js';
 import * as pckcertDao from '../dao/pckcertDao.js';
-import { PLATFORM_REG_SCHEMA } from './ccs_schemas.js';
+import { PLATFORM_REG_SCHEMA } from './pccs_schemas.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 
 const ajv = new Ajv();
@@ -80,7 +80,7 @@ function normalizeRegData(regDataJson) {
         regDataJson.enc_ppid = '';
     } else {
         if (!regDataJson.cpu_svn || !regDataJson.pce_svn || !regDataJson.enc_ppid) {
-            throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
         regDataJson.platform_manifest = '';
         regDataJson.cpu_svn = regDataJson.cpu_svn.toUpperCase();
@@ -93,7 +93,7 @@ export async function registerPlatforms(regDataJson, update) {
     const valid = ajv.validate(PLATFORM_REG_SCHEMA, regDataJson);
     if (!valid) {
         logger.error('Failed to validate the registration data.');
-        throw new CcsError(CcsStatus.CCS_STATUS_INVALID_REQ);
+        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
     }
 
     // normalize registration data

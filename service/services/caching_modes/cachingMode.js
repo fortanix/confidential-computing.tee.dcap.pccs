@@ -28,8 +28,8 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-import CcsError from '../../utils/CcsError.js';
-import CcsStatus from '../../constants/ccs_status_code.js';
+import PccsError from '../../utils/PccsError.js';
+import PccsStatus from '../../constants/pccs_status_code.js';
 import Constants from '../../constants/index.js';
 import * as CommonCacheLogic from '../logic/commonCacheLogic.js';
 import * as platformsRegDao from '../../dao/platformsRegDao.js';
@@ -70,23 +70,23 @@ class CachingMode {
         enc_ppid,
         platform_manifest
     ) {
-        throw new CcsError(CcsStatus.CCS_STATUS_PLATFORM_UNKNOWN);
+        throw new PccsError(PccsStatus.PCCS_STATUS_PLATFORM_UNKNOWN);
     }
 
     async getEnclaveIdentityFromPCS(enclave_id, version, update_type) {
-        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 
     async getPckCrlFromPCS(ca) {
-        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 
     async getRootCACrlFromPCS(rootca) {
-        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 
     async getTcbInfoFromPCS(type, fmspc, version, update_type) {
-        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 
     isRefreshable() {
@@ -110,7 +110,7 @@ class CachingMode {
     }
 
     async getCrlFromPCS(uri) {
-        throw new CcsError(CcsStatus.CCS_STATUS_NO_CACHE_DATA);
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 }
 /* eslint-enable no-unused-vars */
