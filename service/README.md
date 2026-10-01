@@ -214,7 +214,7 @@ You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also
    sudo journalctl -u pccs
    ```
 
-- If the CCS was installed manually by current user, you can start it with the following command:
+- If the PCCS was installed manually by current user, you can start it with the following command:
   ``` bash
   NODE_ENV=production node pccs_server.js
   ```
