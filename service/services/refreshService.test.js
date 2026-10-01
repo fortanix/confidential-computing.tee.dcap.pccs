@@ -239,6 +239,18 @@ describe('refreshService', () => {
             expect(c.logger.warn.calledOnce).to.be.true;
         });
 
+        it('does not leak the coalescing lock when no await in body', async() => {
+            const c = new TestContext();
+            global.PCS_VERSION = 3;
+            const { refreshCache } = await c.getTarget();
+
+            await refreshCache('certs', FMSPC);
+            global.PCS_VERSION = 4;
+            await refreshCache('certs', FMSPC);
+
+            expect(c.pcsClient.getCerts.calledOnce).to.be.true;
+        });
+
         it('uses getCerts when platform has no manifest', async() => {
             const c = new TestContext();
             const { refreshCache } = await c.getTarget();

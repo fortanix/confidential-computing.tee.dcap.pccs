@@ -436,75 +436,75 @@ async function persistAllTcbs(downloadedTcbInfos) {
 // SQLite only allows one writer at a time - this prevents SQLITE_BUSY from parallel transactions.
 const activeRefreshes = new Map();
 
+// Perform the actual HTTP fetch + DB persist work for a refresh, outside of any locking concerns.
+async function executeRefresh(type, fmspc) {
+    if (type === 'certs') {
+        if (global.PCS_VERSION > 3) {
+            // PHASE 1: Fetch data from HTTP (outside transaction)
+            const fetchStart = Date.now();
+            const pckCertItems = await fetchAllPckcerts(fmspc);
+            logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
+
+            // PHASE 2: Persist to DB (inside transaction)
+            const persistStart = Date.now();
+            await sequelize.transaction(async() => {
+                await persistAllPckcerts(pckCertItems);
+            });
+            logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
+        } else {
+            logger.warn('PCS API version 3 is no longer available. PCK certs downloaded using API version 3 will not be refreshed.');
+        }
+    } else {
+        // Cleanup invalid TCBs before starting fetch phase
+        await cleanupInvalidTcbs();
+
+        // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
+        const fetchStart = Date.now();
+        let pckCrlResults; let tcbResults; let enclaveResults;
+        if (global.PCS_VERSION > 3) {
+            [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
+                fetchAllPckCrls(),
+                fetchAllTcbs(),
+                fetchEnclaveIdentities(),
+            ]);
+        } else {
+            logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
+        }
+        const [rootcaCrlData, cachedCrlResults] = await Promise.all([
+            fetchRootcaCrl(),
+            fetchCachedCrls(),
+        ]);
+        logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
+
+        // PHASE 2: Persist all to DB in a single transaction
+        const persistStart = Date.now();
+        await sequelize.transaction(async() => {
+            if (global.PCS_VERSION > 3) {
+                await persistAllPckCrls(pckCrlResults);
+                await persistAllTcbs(tcbResults);
+                await persistEnclaveIdentities(enclaveResults);
+            }
+            await persistRootcaCrl(rootcaCrlData);
+            await persistCachedCrls(cachedCrlResults);
+        });
+        logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
+    }
+}
+
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
-    const lockKey = `${type ?? 'collateral'}:${fmspc ?? '*'}`;
+    const lockKey = type === 'certs' ? `certs:${fmspc}` : 'collateral';
     if (activeRefreshes.has(lockKey)) {
         logger.info(`[refreshCache] Refresh for key=${lockKey} already in progress, awaiting shared result`);
         return activeRefreshes.get(lockKey);
     }
 
-    const refreshPromise = (async() => {
-        try {
-            if (type === 'certs') {
-                if (global.PCS_VERSION > 3) {
-                // PHASE 1: Fetch data from HTTP (outside transaction)
-                    const fetchStart = Date.now();
-                    const pckCertItems = await fetchAllPckcerts(fmspc);
-                    logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
-
-                    // PHASE 2: Persist to DB (inside transaction)
-                    const persistStart = Date.now();
-                    await sequelize.transaction(async() => {
-                        await persistAllPckcerts(pckCertItems);
-                    });
-                    logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
-                } else {
-                    logger.warn('PCS API version 3 is no longer available. PCK certs downloaded using API version 3 will not be refreshed.');
-                }
-            } else {
-            // Cleanup invalid TCBs before starting fetch phase
-                await cleanupInvalidTcbs();
-
-                // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
-                const fetchStart = Date.now();
-                let pckCrlResults; let tcbResults; let enclaveResults;
-                if (global.PCS_VERSION > 3) {
-                    [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
-                        fetchAllPckCrls(),
-                        fetchAllTcbs(),
-                        fetchEnclaveIdentities(),
-                    ]);
-                } else {
-                    logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
-                }
-                const [rootcaCrlData, cachedCrlResults] = await Promise.all([
-                    fetchRootcaCrl(),
-                    fetchCachedCrls(),
-                ]);
-                logger.info(`[refreshCache] PHASE 1 (HTTP fetch) durationMs=${Date.now() - fetchStart}`);
-
-                // PHASE 2: Persist all to DB in a single transaction
-                const persistStart = Date.now();
-                await sequelize.transaction(async() => {
-                    if (global.PCS_VERSION > 3) {
-                        await persistAllPckCrls(pckCrlResults);
-                        await persistAllTcbs(tcbResults);
-                        await persistEnclaveIdentities(enclaveResults);
-                    }
-                    await persistRootcaCrl(rootcaCrlData);
-                    await persistCachedCrls(cachedCrlResults);
-                });
-                logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
-            }
-        } finally {
-            activeRefreshes.delete(lockKey);
-        }
-    })();
-
+    // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
+    // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
+    const refreshPromise = executeRefresh(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }
