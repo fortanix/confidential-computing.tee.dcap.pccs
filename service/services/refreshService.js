@@ -66,7 +66,6 @@ async function runDbWriteOperations(writeOperations) {
     await Promise.all(writeOperations.map(writeOperation => writeOperation()));
 }
 
-
 // Fetch enclave identities from PCS (HTTP only, no DB writes)
 async function fetchEnclaveIdentities() {
     if (global.PCS_VERSION === 3) {
@@ -432,8 +431,31 @@ async function persistAllTcbs(downloadedTcbInfos) {
     }));
 }
 
+// Serializes transactions across *different* refresh keys when using SQLite: per-key coalescing
+// (activeRefreshes) only dedupes identical refreshes, so two distinct keys (e.g. different fmspc, or
+// certs vs collateral) could otherwise open concurrent transactions and hit SQLITE_BUSY once the busy
+// timeout elapses, since SQLite (even in WAL mode) allows only one writer at a time.
+let sqliteWriteQueue = Promise.resolve();
+
+function runExclusiveIfSqlite(writeOperation) {
+    if (!useSequentialDbWrites()) {
+        return writeOperation();
+    }
+
+    const queuedAt = Date.now();
+    const runAndLogQueueWait = () => {
+        logger.info(`[refreshCache] Including SQLite write queue wait durationMs=${Date.now() - queuedAt}`);
+        return writeOperation();
+    };
+
+    const result = sqliteWriteQueue.then(runAndLogQueueWait, runAndLogQueueWait);
+    // Keep the queue moving even if this write fails; callers still observe the real rejection via `result`.
+    sqliteWriteQueue = result.catch(() => {});
+    return result;
+}
+
 // In-memory coalescing map: concurrent refreshes for the same (type, fmspc) share one Promise.
-// SQLite only allows one writer at a time - this prevents SQLITE_BUSY from parallel transactions.
+// Distinct keys are NOT coalesced by this map; runExclusiveIfSqlite handles those.
 const activeRefreshes = new Map();
 
 // Perform the actual HTTP fetch + DB persist work for a refresh, outside of any locking concerns.
@@ -447,16 +469,16 @@ async function executeRefresh(type, fmspc) {
 
             // PHASE 2: Persist to DB (inside transaction)
             const persistStart = Date.now();
-            await sequelize.transaction(async() => {
+            await runExclusiveIfSqlite(() => sequelize.transaction(async() => {
                 await persistAllPckcerts(pckCertItems);
-            });
+            }));
             logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
         } else {
             logger.warn('PCS API version 3 is no longer available. PCK certs downloaded using API version 3 will not be refreshed.');
         }
     } else {
-        // Cleanup invalid TCBs before starting fetch phase
-        await cleanupInvalidTcbs();
+        // Cleanup invalid TCBs before starting fetch phase; queued so it can't race the persist transactions
+        await runExclusiveIfSqlite(() => cleanupInvalidTcbs());
 
         // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
         const fetchStart = Date.now();
@@ -478,7 +500,7 @@ async function executeRefresh(type, fmspc) {
 
         // PHASE 2: Persist all to DB in a single transaction
         const persistStart = Date.now();
-        await sequelize.transaction(async() => {
+        await runExclusiveIfSqlite(() => sequelize.transaction(async() => {
             if (global.PCS_VERSION > 3) {
                 await persistAllPckCrls(pckCrlResults);
                 await persistAllTcbs(tcbResults);
@@ -486,7 +508,7 @@ async function executeRefresh(type, fmspc) {
             }
             await persistRootcaCrl(rootcaCrlData);
             await persistCachedCrls(cachedCrlResults);
-        });
+        }));
         logger.info(`[refreshCache] PHASE 2 (DB persist) durationMs=${Date.now() - persistStart}`);
     }
 }

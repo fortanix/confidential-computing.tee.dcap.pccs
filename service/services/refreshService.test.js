@@ -399,6 +399,132 @@ describe('refreshService', () => {
         });
     });
 
+    describe('refreshCache — SQLite cross-key transaction serialization', () => {
+        // Wraps an async implementation with a brief delay and tracks the max number of concurrently
+        // in-flight wrapped calls, so overlap is observable even when the real DB stubs resolve instantly.
+        function trackConcurrency() {
+            let active = 0;
+            let maxActive = 0;
+            function wrap(impl) {
+                return async(...args) => {
+                    active++;
+                    maxActive = Math.max(maxActive, active);
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                        return await impl(...args);
+                    } finally {
+                        active--;
+                    }
+                };
+            }
+            return { wrap, getMaxActive: () => maxActive };
+        }
+
+        it('serializes transactions for different fmspc keys when DB_CONFIG=sqlite', async() => {
+            const c = new TestContext();
+            const { wrap, getMaxActive } = trackConcurrency();
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(fn => fn()));
+            const { refreshCache } = await c.getTarget();
+
+            await Promise.all([
+                refreshCache('certs', FMSPC),
+                refreshCache('certs', 'FFFFFFFFFFFF'),
+            ]);
+
+            expect(getMaxActive()).to.equal(1);
+            expect(c.sequelize.transaction.calledTwice).to.be.true;
+        });
+
+        it('serializes a certs refresh and a collateral refresh when DB_CONFIG=sqlite', async() => {
+            const c = new TestContext();
+            const { wrap, getMaxActive } = trackConcurrency();
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(fn => fn()));
+            const { refreshCache } = await c.getTarget();
+
+            await Promise.all([
+                refreshCache('certs', FMSPC),
+                refreshCache('collateral', undefined),
+            ]);
+
+            expect(getMaxActive()).to.equal(1);
+        });
+
+        it('logs the queue wait duration for the transaction that had to wait', async() => {
+            const c = new TestContext();
+            const { wrap, getMaxActive } = trackConcurrency();
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(fn => fn()));
+            const { refreshCache } = await c.getTarget();
+
+            await Promise.all([
+                refreshCache('certs', FMSPC),
+                refreshCache('certs', 'FFFFFFFFFFFF'),
+            ]);
+
+            expect(getMaxActive()).to.equal(1);
+            const queueWaitLogs = c.logger.info.getCalls()
+                .map(call => call.args[0])
+                .filter(message => message.includes('SQLite write queue wait durationMs='));
+            expect(queueWaitLogs.length).to.equal(2);
+        });
+
+        it('still serializes the next transaction after one fails', async() => {
+            const c = new TestContext();
+            const { wrap, getMaxActive } = trackConcurrency();
+            let callCount = 0;
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(async fn => {
+                callCount++;
+                if (callCount === 1) {
+                    throw new Error('simulated transaction failure');
+                }
+                return fn();
+            }));
+            const { refreshCache } = await c.getTarget();
+
+            const failing = refreshCache('certs', FMSPC);
+            const succeeding = refreshCache('certs', 'FFFFFFFFFFFF');
+
+            await assert.rejects(() => failing);
+            await succeeding;
+
+            expect(getMaxActive()).to.equal(1);
+            expect(c.sequelize.transaction.calledTwice).to.be.true;
+        });
+
+        it('serializes the collateral cleanupInvalidTcbs write against a concurrent certs transaction when DB_CONFIG=sqlite', async() => {
+            const c = new TestContext();
+            const { wrap, getMaxActive } = trackConcurrency();
+            c.fmspcTcbDao.deleteInvalidTcbs = sinon.stub().callsFake(wrap(async() => {}));
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(fn => fn()));
+            const { refreshCache } = await c.getTarget();
+
+            await Promise.all([
+                refreshCache('certs', FMSPC),
+                refreshCache('collateral', undefined),
+            ]);
+
+            expect(getMaxActive()).to.equal(1);
+            expect(c.fmspcTcbDao.deleteInvalidTcbs.calledOnce).to.be.true;
+            expect(c.sequelize.transaction.called).to.be.true;
+            // cleanup must still precede the collateral fetch phase even while queued behind the certs transaction
+            expect(c.fmspcTcbDao.deleteInvalidTcbs.calledBefore(c.fmspcTcbDao.getAllTcbs)).to.be.true;
+        });
+
+        it('does not serialize transactions when DB_CONFIG is not sqlite', async() => {
+            const c = new TestContext();
+            c.config.get = sinon.stub().callsFake(key => (key === 'DB_CONFIG' ? 'mysql' : undefined));
+            const { wrap, getMaxActive } = trackConcurrency();
+            c.sequelize.transaction = sinon.stub().callsFake(wrap(fn => fn()));
+            const { refreshCache } = await c.getTarget();
+
+            await Promise.all([
+                refreshCache('certs', FMSPC),
+                refreshCache('certs', 'FFFFFFFFFFFF'),
+            ]);
+
+            expect(getMaxActive()).to.equal(2);
+        });
+    });
+
     describe('refreshCache — type=collateral (full refresh)', () => {
         it('throws SERVICE_UNAVAILABLE when not refreshable', async() => {
             const c = new TestContext();
