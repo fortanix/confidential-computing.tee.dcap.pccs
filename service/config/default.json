@@ -8,9 +8,11 @@
     "UserTokenHash" : "",
     "AdminTokenHash" : "",
     "MaxRequestBodySize": "2MB",
-    "HeadersTimeoutSeconds": 10,
-    "RequestTimeoutSeconds": 15,
+    "HeadersTimeoutSeconds": 30,
+    "RequestTimeoutSeconds": 60,
     "KeepAliveTimeoutSeconds": 60,
+    "PcsRequestTimeoutSeconds": 16,
+    "PcsMaxRetryCount": 2,
     "CachingFillMode" : "LAZY",
     "OPENSSL_FIPS_MODE" : false,
     "LogLevel" : "info",
@@ -22,7 +24,10 @@
                 "freezeTableName": true
             },
             "logging" : false, 
-            "storage": "pckcache.db"
+            "storage": "pckcache.db",
+            "dialectOptions": {
+                "busyTimeout": 10000
+            }
         }
     }, 
     //"mysql" : {   // This config section is used only if DB_CONFIG == "mysql".
@@ -46,8 +51,8 @@
     //        "logging" : false
     //    },
     //    "ssl":{
-    //        "required": false,
-    //        "ca":"/if_ssl_is_required/path/to/your_ssl_ca"
+    //        "required": true,
+    //        "ca":"/path/to/your_ssl_ca"
     //    }
     //}
 }

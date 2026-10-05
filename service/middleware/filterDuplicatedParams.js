@@ -38,8 +38,13 @@ export default function filterDuplicatedParams(req, res, next) {
         filteredQuery[key] = Array.isArray(value) ? value[0] : value;
     });
 
-    // Replace the original req.query with the filtered query parameters
-    req.query = filteredQuery;
+    // req.query is a read-only getter in Express 5, so it must be redefined instead of assigned
+    Object.defineProperty(req, 'query', {
+        value:        filteredQuery,
+        writable:     false,
+        configurable: true,
+        enumerable:   true,
+    });
 
     next(); // Proceed to the next middleware or request handler
 }

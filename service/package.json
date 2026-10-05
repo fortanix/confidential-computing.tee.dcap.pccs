@@ -1,36 +1,39 @@
 {
   "name": "PCCS",
   "description": "Provisioning Certificate Caching Service",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "type": "module",
   "dependencies": {
-    "@fidm/x509": "^1.2.1",
+    "@peculiar/asn1-schema": "^2.8.0",
+    "@peculiar/asn1-x509": "^2.8.0",
+    "@peculiar/x509": "^2.0.0",
+    "asn1js": "^3.0.10",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "body-parser": "^2.3.0",
-    "caw": "^2.0.1",
     "cls-hooked": "^4.2.2",
     "config": "^4.4.1",
-    "cross-env": "^10.1.0",
-    "express": "^4.22.3",
-    "got": "^11.8.6",
+    "core-js": "^3.49.0",
+    "express": "^5.2.1",
+    "got": "^15.1.0",
+    "https-proxy-agent": "^9.1.0",
     "morgan": "^1.12.1",
     "mysql2": "^3.24.5",
-    "node-schedule": "^2.1.1",
+    "node-cron": "^4.6.0",
     "sequelize": "^6.37.8",
     "sqlite3": "^5.1.7",
     "umzug": "^3.8.2",
     "winston": "^3.19.0"
   },
   "devDependencies": {
-    "chai": "^6.3.0",
-    "mocha": "^11.7.5",
-    "sinon": "^21.1.2",
-    "eslint": "^10.12.0",
     "@eslint/js": "^10.0.1",
+    "chai": "^6.3.0",
+    "eslint": "^10.12.0",
     "eslint-plugin-chai-friendly": "^1.2.0",
     "eslint-plugin-n": "^18.4.1",
     "esmock": "^2.7.5",
+    "mocha": "^11.7.5",
+    "sinon": "^21.1.2",
     "supertest": "^7.3.1"
   },
   "engines": {
@@ -47,9 +50,13 @@
     "uuid": "^11.1.1"
   },
   "scripts": {
-    "start": "cross-env NODE_ENV=production node pccs_server.js",
+    "start": "NODE_ENV=production node pccs_server.js",
     "test": "mocha",
     "eslint": "eslint",
     "eslintFix": "eslint --fix"
+  },
+  "allowScripts": {
+    "core-js@3.50.0": true,
+    "sqlite3@5.1.7": true
   }
 }

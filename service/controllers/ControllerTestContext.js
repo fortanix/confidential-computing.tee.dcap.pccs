@@ -8,9 +8,23 @@ export default class ControllerTestContext {
     constructor(controllerName) {
         this.response = new ResponseStub();
         this.controllerName = controllerName;
-        this.serviceStubs = {}; //override me
+        this.serviceStubs = {
+            '../services/platformsRegService.js':       {},
+            '../services/platformCollateralService.js': {},
+            '../services/pckcertService.js':            {},
+            '../services/pckcrlService.js':             {},
+            '../services/tcbinfoService.js':            {},
+            '../services/identityService.js':           {},
+            '../services/rootcacrlService.js':          {},
+            '../services/refreshService.js':            {},
+            '../services/platformsService.js':          {},
+            '../services/crlService.js':                {},
+            '../services/appraisalPolicyService.js':    {}
+        }; //override me
         this.otherStubs = {}; //override me
-        this.globalStubs = {}; //override me
+        this.globalStubs = {
+            '../dao/models/index.js': { sequelize: {} }
+        }; //override me
     }
 
     next(err) {
@@ -18,8 +32,8 @@ export default class ControllerTestContext {
     }
 
     async getTarget() {
-        const services = await esmock('../services/index.js', this.serviceStubs);
-        return await esmock(this.controllerName, {
+        const services = await esmock.strict('../services/index.js', this.serviceStubs);
+        return await esmock.strict(this.controllerName, {
             ...this.otherStubs,
             '../services/index.js': services
         }, this.globalStubs);

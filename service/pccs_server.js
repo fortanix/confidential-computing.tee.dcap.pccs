@@ -35,11 +35,12 @@ import Config from 'config';
 import morgan from 'morgan';
 import express from 'express';
 import logger, { formatLogMessage } from './utils/Logger.js';
-import node_schedule from 'node-schedule';
+import cron from 'node-cron';
 import body_parser from 'body-parser';
 import { sgxRouter, tdxRouter, healthRouter } from './routes/index.js';
 import * as fs from 'fs';
 import * as https from 'https';
+import { constants as crypto_constants } from 'crypto';
 import { validateTokenHashes } from './middleware/auth.js';
 import * as error from './middleware/error.js';
 import addRequestId from './middleware/addRequestId.js';
@@ -60,7 +61,19 @@ const app = express();
 app.disable('x-powered-by');
 
 async function initializeApp() {
-    global.PCS_VERSION = appUtil.getApiVersionFromUrl(Config.get('uri'));
+    if (!Config.has('uri')) {
+        const message = "The configured PCS 'uri' is missing.";
+        logger.error(message);
+        logger.endAndExitProcess();
+        throw new Error(message);
+    }
+    try {
+        global.PCS_VERSION = appUtil.getApiVersionFromUrl(Config.get('uri'));
+    } catch (err) {
+        logger.error(`The configured PCS 'uri' is invalid: ${err.message}`);
+        logger.endAndExitProcess();
+        throw err;
+    }
 
     if (Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE')) {
         const crypto = await import('node:crypto');
@@ -95,7 +108,6 @@ function configureMiddlewareAndRoutes() {
     app.use(body_parser.urlencoded({ extended: true, limit: maxRequestBodySize }));
     app.use(body_parser.json({ limit: maxRequestBodySize }));
 
-    // note: don't configure middleware for whole routes (e.g. /sgx/certification/v4/platforms) as express allows using // in the URL, which will bypass the middleware. Instead, configure middleware in router.
     // router
     app.use('/sgx/certification/v3', sgxRouter);
     if (global.PCS_VERSION === 4) {
@@ -146,17 +158,50 @@ function startHttpsServer() {
         'rsa_pkcs1_sha384',
         'rsa_pkcs1_sha512',
     ];
+    const fipsEnabled = Config.has('OPENSSL_FIPS_MODE') && Config.get('OPENSSL_FIPS_MODE');
+
+    const secure_ciphers = fipsEnabled ?
+        [
+            'TLS_AES_256_GCM_SHA384',
+            'TLS_AES_128_GCM_SHA256',
+            'ECDHE-RSA-AES256-GCM-SHA384',
+            'ECDHE-ECDSA-AES256-GCM-SHA384',
+            'ECDHE-RSA-AES128-GCM-SHA256',
+            'ECDHE-ECDSA-AES128-GCM-SHA256',
+        ] :
+        [
+            'TLS_AES_256_GCM_SHA384',
+            'TLS_CHACHA20_POLY1305_SHA256',
+            'TLS_AES_128_GCM_SHA256',
+            'TLS_AES_128_CCM_SHA256',
+            'ECDHE-RSA-AES256-GCM-SHA384',
+            'ECDHE-ECDSA-AES256-GCM-SHA384',
+            'ECDHE-RSA-AES128-GCM-SHA256',
+            'ECDHE-ECDSA-AES128-GCM-SHA256',
+        ];
+
+    const secure_ecdh_curves = fipsEnabled ?
+        ['P-384', 'P-521', 'P-256'] :
+        ['P-384', 'P-521', 'X448', 'P-256', 'X25519'];
     const options = {
-        key:     privateKey,
-        cert:    certificate,
-        sigalgs: secure_sigalgs.join(':'),
+        key:              privateKey,
+        cert:             certificate,
+        sigalgs:          secure_sigalgs.join(':'),
+        honorCipherOrder: true,
+        ciphers:          secure_ciphers.join(':'),
+        ecdhCurve:        secure_ecdh_curves.join(':'),
+        secureOptions:    crypto_constants.SSL_OP_NO_RENEGOTIATION,
     };
 
     try {
         const httpsServer = https.createServer(options, app);
-        httpsServer.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 15) * 1000;
-        httpsServer.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 10) * 1000;
+        httpsServer.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 60) * 1000;
+        httpsServer.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 30) * 1000;
         httpsServer.keepAliveTimeout = (Config.has('KeepAliveTimeoutSeconds') ? Config.get('KeepAliveTimeoutSeconds') : 60) * 1000;
+        httpsServer.on('tlsClientError', (err, socket) => {
+            const peer = `${socket.remoteAddress ?? 'unknown'}:${socket.remotePort ?? 'unknown'}`;
+            logger.info(`TLS client error from ${peer}: ${err.code ?? ''} ${err.message}`.trim());
+        });
         httpsServer.listen(Config.get('HTTPS_PORT'), Config.get('hosts'), () => {
             logger.info(`HTTPS Server is running on: https://localhost:${Config.get('HTTPS_PORT')}`);
             app.emit('app_started');
@@ -178,7 +223,7 @@ function startHttpsServer() {
 }
 
 function scheduleRefreshJob() {
-    node_schedule.scheduleJob(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
+    cron.schedule(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
 }
 
 async function main() {

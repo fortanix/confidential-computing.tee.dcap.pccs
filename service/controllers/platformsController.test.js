@@ -24,18 +24,12 @@ class TestContext extends ControllerTestContext {
         this.platformsService = {
             getCachedPlatforms: sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/platformsRegService.js': this.platformsRegService,
-            '../services/platformsService.js':    this.platformsService
-        };
+        this.serviceStubs['../services/platformsRegService.js'] = this.platformsRegService;
+        this.serviceStubs['../services/platformsService.js'] = this.platformsService;
         this.sequelizeStub = {
             transaction: sinon.stub().callsFake(async(callback) => await callback())
         };
-        this.otherStubs = {
-            '../dao/models/index.js': {
-                sequelize: this.sequelizeStub
-            }
-        };
+        this.globalStubs['../dao/models/index.js'].sequelize = this.sequelizeStub;
     }
 
     getPostRequest() {

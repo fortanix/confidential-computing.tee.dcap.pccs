@@ -390,7 +390,7 @@ then
             # Generate a dedicated CA key (with restricted permissions) and a self-signed CA certificate (valid 10 years).
             # This CA is used solely to sign the PCCS server certificate below.
             # The CA certificate (ssl_key/ca.crt) is what clients must trust, e.g. via pccsadmin --ca ssl_key/ca.crt, to verify the PCCS server's identity.
-            openssl genrsa -out ssl_key/ca.key 2048
+            openssl genrsa -out ssl_key/ca.key 3072
             chmod 600 ssl_key/ca.key
             openssl req -new -x509 -days 3650 -key ssl_key/ca.key \
                 -out ssl_key/ca.crt \
@@ -477,7 +477,7 @@ EOF
             trap 'rm -f ssl_key/pccs_cert_ext.cnf' EXIT
 
             # Generate the server's private key.
-            openssl genrsa -out ssl_key/private.pem 2048
+            openssl genrsa -out ssl_key/private.pem 3072
 
             # Create a Certificate Signing Request (CSR) from the server's private key.
             openssl req -new -key ssl_key/private.pem -out ssl_key/csr.pem -subj "/CN=PCCS Server"

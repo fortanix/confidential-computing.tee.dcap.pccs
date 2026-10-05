@@ -16,9 +16,7 @@ class TestContext extends ControllerTestContext {
             getDefaultAppraisalPolicies: sinon.stub(),
             putAppraisalPolicy:          sinon.stub()
         };
-        this.serviceStubs = {
-            '../services/appraisalPolicyService.js': this.appraisalPolicyService
-        };
+        this.serviceStubs['../services/appraisalPolicyService.js'] = this.appraisalPolicyService;
     }
 
     getAppraisalPolicyRequest() {

@@ -32,21 +32,30 @@
 import Config from 'config';
 import winston from 'winston';
 import path from 'path';
-import clshooked from 'cls-hooked';
 import * as fs from 'fs';
-import { parseAndModifyUrl } from '../pcs_client/pcs_client.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'url';
 const scriptDirname = path.dirname(fileURLToPath(import.meta.url));
 const { createLogger, format, transports } = winston;
 const { combine, timestamp, printf } = format;
 
-export const loggerNamespace = clshooked.createNamespace('pccs-logger-namespace');
+const LOGGER_CONTEXT_KEY = Symbol.for('LoggerRequestContext');
+const loggerRequestContext = globalThis[LOGGER_CONTEXT_KEY] ?? new AsyncLocalStorage();
+globalThis[LOGGER_CONTEXT_KEY] = loggerRequestContext;
+
+export function getCurrentRequestId() {
+    return loggerRequestContext.getStore()?.requestId;
+}
+
+export function setCurrentRequestId(requestId, callback) {
+    loggerRequestContext.run({ requestId }, callback);
+}
 
 export function formatLogMessage(tokens, req, res) {
     const url = tokens.url(req, res);
     const status = tokens.status(req, res);
     const ip = tokens['remote-addr'](req, res);
-    return `[IP=${ip}][URL=${parseAndModifyUrl(url)}] -> [Status=${status}]`;
+    return `[IP=${ip}][URL=${parseAndShortenUrlForLogging(url)}] -> [Status=${status}]`;
 }
 
 const options = {
@@ -65,67 +74,129 @@ const options = {
     },
 };
 
-const logger = createLogger({
-    format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
-        printf((info) => {
-            const requestId = loggerNamespace.get('clientRequestId');
-            if (!requestId) {
-                return `${info.timestamp} [${info.level}]: ${info.message}`;
-            } else {
-                return `${info.timestamp} [${info.level}] [Client Request-ID=${requestId}] ${info.message}`;
+const LOGGER_PROXY_KEY = Symbol.for('LoggerProxy');
+
+let loggerProxy = globalThis[LOGGER_PROXY_KEY];
+
+if (!loggerProxy) {
+    // Ensure file transport path exists before Winston opens the log file.
+    fs.mkdirSync(path.join(scriptDirname, '../logs'), { recursive: true });
+
+    let stopped = false;
+
+    const logger = createLogger({
+        format: combine(
+            timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
+            printf((info) => {
+                const requestId = getCurrentRequestId();
+                if (!requestId) {
+                    return `${info.timestamp} [${info.level}]: ${info.message}`;
+                } else {
+                    return `${info.timestamp} [${info.level}] [Client Request-ID=${requestId}] ${info.message}`;
+                }
+            })
+        ),
+        transports: [
+            new transports.File(options.file),
+            new transports.Console(options.console),
+        ],
+        exitOnError: false, // do not exit on handled exceptions
+    });
+
+    logger.stream = {
+        write: message => {
+            if (stopped) {
+                return;
             }
-        })
-    ),
-    transports: [
-        new transports.File(options.file),
-        new transports.Console(options.console),
-    ],
-    exitOnError: false, // do not exit on handled exceptions
-});
+            logger.info(String(message).trim());
+        },
+    };
 
-logger.stream = {
-    write: message => {
-        logger.info(message.trim());
-    },
-};
+    logger.on('finish', () => {
+        setTimeout(() => process.exit(1), 2000);
+    });
 
-logger.on('finish', () => {
-    setTimeout(() => process.exit(1), 2000);
-});
+    logger.endAndExitProcess = () => {
+        logger.end();
+    };
 
-logger.endAndExitProcess = () => {
-    logger.end();
-};
+    process.on('uncaughtException', exception => {
+        logger.error(exception);
+    });
 
-process.on('uncaughtException', exception => {
-    logger.error(exception);
-});
+    process.on('SIGINT', () => {
+        logger.endAndExitProcess();
+    });
 
-process.on('SIGINT', () => {
-    logger.endAndExitProcess();
-});
-
-// Create ./logs if it doesn't exist
-fs.mkdirSync('./logs', { recursive: true });
-
-// Add a stopped flag
-let stopped = false;
-
-// Create a proxy for the logger to check the stopped flag
-const loggerProxy = new Proxy(logger, {
-    get(target, property) {
-        if (property === 'endAndExitProcess') {
-            return () => {
-                stopped = true;
-                target.end();
-            };
+    // Create a proxy for the logger to check the stopped flag
+    loggerProxy = new Proxy(logger, {
+        get(target, property) {
+            if (property === 'endAndExitProcess') {
+                return () => {
+                    stopped = true;
+                    target.end();
+                };
+            }
+            if (stopped) {
+                const value = target[property];
+                return typeof value === 'function' ? () => {} : value;
+            }
+            return target[property];
         }
-        if (stopped) {
-            return () => {}; // Return a no-op function if stopped
+    });
+    globalThis[LOGGER_PROXY_KEY] = loggerProxy;
+}
+
+export function parseAndShortenUrlForLogging(url) {
+    try {
+        if (typeof url !== 'string' || url.length === 0) {
+            return String(url ?? '');
         }
-        return target[property];
+
+        let parsedUrl;
+        let queryString = '';
+
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            try {
+                parsedUrl = new URL(url);
+                queryString = parsedUrl.search.slice(1);
+            } catch (error) {
+                loggerProxy.warn(`URL parsing error: ${error.message}`);
+                return url;
+            }
+        } else {
+            const [pathname, query] = url.split('?', 2);
+            parsedUrl = { pathname, search: query ? `?${query}` : '' };
+            queryString = query || '';
+        }
+        if (!queryString) {
+            return url;
+        }
+
+        const paramsArray = queryString.split('&');
+        const modifiedParamsArray = paramsArray.map(param => {
+            const separatorIndex = param.indexOf('=');
+            if (separatorIndex === -1) {
+                return param;
+            }
+
+            const key = param.slice(0, separatorIndex);
+            const value = param.slice(separatorIndex + 1);
+            if (value && value.length > 50) {
+                const modifiedValue = `${value.slice(0, 4)}...${value.slice(-4)}`;
+                return `${key}=${modifiedValue}`;
+            }
+            return param;
+        });
+
+        const modifiedQueryString = modifiedParamsArray.join('&');
+        parsedUrl.search = `?${modifiedQueryString}`;
+        const modifiedUrl = parsedUrl.origin ? parsedUrl.origin + parsedUrl.pathname + parsedUrl.search : parsedUrl.pathname + parsedUrl.search;
+        return modifiedUrl;
+    } catch (error) {
+        loggerProxy.warn(`URL modifying error: ${error.message}`);
+        return url;
     }
-});
+}
 
 export default loggerProxy;
