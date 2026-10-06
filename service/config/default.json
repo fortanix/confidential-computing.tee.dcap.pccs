@@ -24,10 +24,7 @@
                 "freezeTableName": true
             },
             "logging" : false, 
-            "storage": "pckcache.db",
-            "dialectOptions": {
-                "busyTimeout": 10000
-            }
+            "storage": "pckcache.db"
         }
     }, 
     //"mysql" : {   // This config section is used only if DB_CONFIG == "mysql".
