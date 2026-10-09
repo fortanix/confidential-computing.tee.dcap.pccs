@@ -138,3 +138,52 @@ describe('auth bypass regression (duplicate slashes)', () => {
         });
     });
 });
+
+describe('strict routing regression (trailing slash)', () => {
+    let app;
+    let controllers;
+    let authStub;
+
+    before(async() => {
+        controllers = makeControllerStubs();
+        authStub = makeAuthStub();
+
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
+            './controllers/index.js': controllers,
+            './middleware/auth.js':   authStub,
+        });
+        app = serverModule.default;
+    });
+
+    beforeEach(() => {
+        sinon.resetHistory();
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
+    });
+
+    function controllerSpyForRoute(route) {
+        return controllers[route.controller[0]][route.controller[1]];
+    }
+
+    function authSpyForRoute(route) {
+        return route.auth === 'admin' ? authStub.validateAdmin : authStub.validateUser;
+    }
+
+    PROTECTED_ROUTES.forEach((route) => {
+        const trailingSlashPath = `${MOUNT}${route.path}/`;
+
+        it(`${route.method.toUpperCase()} ${route.path}/ (${route.auth} auth) results in 404 even with valid credentials (strict routing rejects the optional trailing slash)`, async() => {
+            const validHeaders = route.auth === 'admin'
+                ? { 'admin-token': ADMIN_TOKEN }
+                : { 'user-token': USER_TOKEN };
+
+            const res = await request(app)[route.method](trailingSlashPath).set(validHeaders);
+
+            expect(res.status).to.equal(404);
+            expect(controllerSpyForRoute(route).called).to.equal(false);
+            expect(authSpyForRoute(route).called).to.equal(false);
+        });
+    });
+});

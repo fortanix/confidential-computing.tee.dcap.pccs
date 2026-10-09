@@ -47,10 +47,10 @@ import {
 } from '../controllers/index.js';
 import * as auth from '../middleware/auth.js';
 
-// express routes for our API
-const sgxRouter = expressRouter();
-const tdxRouter = expressRouter();
-const healthRouter = expressRouter();
+// strict: true disables the implicit optional trailing slash (e.g. "/platforms/" no longer matches "/platforms")
+const sgxRouter = expressRouter({ strict: true });
+const tdxRouter = expressRouter({ strict: true });
+const healthRouter = expressRouter({ strict: true });
 
 // parse body only after auth, and only on routes that actually read req.body
 // if you add a new route here with ...parseBody, also add it to BODY_ALLOWED_ENDPOINTS in middleware/rejectUnexpectedBody.js
