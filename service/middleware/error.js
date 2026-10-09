@@ -35,6 +35,14 @@ import logger from '../utils/Logger.js';
 
 // eslint-disable-next-line no-unused-vars
 export function errorHandling(err, req, res, next) {
+    const hasUnreadBody =
+         (Number(req.headers['content-length']) > 0 || 'transfer-encoding' in req.headers) &&
+         !req.readableEnded;
+    if (hasUnreadBody) {
+        // Do not wait for an unread request body before closing the connection.
+        res.on('finish', () => req.socket.destroy());
+        res.set('Connection', 'close');
+    }
     if (err instanceof PccsError) {
         res.status(err.status).send(err.message);
     } else if (err instanceof SyntaxError) {

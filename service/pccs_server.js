@@ -36,7 +36,6 @@ import morgan from 'morgan';
 import express from 'express';
 import logger, { formatLogMessage } from './utils/Logger.js';
 import cron from 'node-cron';
-import body_parser from 'body-parser';
 import { sgxRouter, tdxRouter, healthRouter } from './routes/index.js';
 import * as fs from 'fs';
 import * as https from 'https';
@@ -44,6 +43,7 @@ import { constants as crypto_constants } from 'crypto';
 import { validateTokenHashes } from './middleware/auth.js';
 import * as error from './middleware/error.js';
 import addRequestId from './middleware/addRequestId.js';
+import rejectUnexpectedBody from './middleware/rejectUnexpectedBody.js';
 import filterDuplicatedParams from './middleware/filterDuplicatedParams.js';
 import v3EolWarning from './middleware/v3EolWarning.js';
 import * as refreshService from './services/refreshService.js';
@@ -97,16 +97,10 @@ async function initializeApp() {
 function configureMiddlewareAndRoutes() {
     app.use(morgan(formatLogMessage, { stream: logger.stream }));
     app.use(addRequestId);
+    app.use(rejectUnexpectedBody);
     app.use(filterDuplicatedParams);
 
     app.use('/sgx/certification/v3', v3EolWarning);
-
-    validateTokenHashes();
-
-    // body size limits
-    const maxRequestBodySize = Config.has('MaxRequestBodySize') ? Config.get('MaxRequestBodySize') : '2MB';
-    app.use(body_parser.urlencoded({ extended: true, limit: maxRequestBodySize }));
-    app.use(body_parser.json({ limit: maxRequestBodySize }));
 
     // router
     app.use('/sgx/certification/v3', sgxRouter);
@@ -214,6 +208,7 @@ function scheduleRefreshJob() {
 
 async function main() {
     await initializeApp();
+    validateTokenHashes();
     configureMiddlewareAndRoutes();
     setCachingMode();
     startHttpsServer();

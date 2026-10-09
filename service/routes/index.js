@@ -30,6 +30,8 @@
  */
 import express from 'express';
 const expressRouter = express.Router;
+import Config from 'config';
+import body_parser from 'body-parser';
 import {
     platformsController,
     platformCollateralController,
@@ -50,15 +52,23 @@ const sgxRouter = expressRouter();
 const tdxRouter = expressRouter();
 const healthRouter = expressRouter();
 
+// parse body only after auth, and only on routes that actually read req.body
+// if you add a new route here with ...parseBody, also add it to BODY_ALLOWED_ENDPOINTS in middleware/rejectUnexpectedBody.js
+const maxRequestBodySize = Config.has('MaxRequestBodySize') ? Config.get('MaxRequestBodySize') : '2MB';
+const parseBody = [
+    body_parser.urlencoded({ extended: true, limit: maxRequestBodySize }),
+    body_parser.json({ limit: maxRequestBodySize })
+];
+
 //---------------- Routes for SGX APIs-------------------------------
 sgxRouter
     .route('/platforms')
-    .post(auth.validateUser, platformsController.postPlatforms)
+    .post(auth.validateUser, ...parseBody, platformsController.postPlatforms)
     .get(auth.validateAdmin, platformsController.getPlatforms);
 
 sgxRouter
     .route('/platformcollateral')
-    .put(auth.validateAdmin, platformCollateralController.putPlatformCollateral);
+    .put(auth.validateAdmin, ...parseBody, platformCollateralController.putPlatformCollateral);
 
 sgxRouter.route('/pckcert').get(pckcertController.getPckCert);
 
@@ -81,7 +91,7 @@ sgxRouter
 
 sgxRouter
     .route('/appraisalpolicy')
-    .put(auth.validateAdmin, appraisalPolicyController.putAppraisalPolicy)
+    .put(auth.validateAdmin, ...parseBody, appraisalPolicyController.putAppraisalPolicy)
     .get(appraisalPolicyController.getAppraisalPolicy);
 
 //---------------- Routes for TDX APIs-------------------------------
