@@ -175,9 +175,9 @@ describe('strict routing regression (trailing slash)', () => {
         const trailingSlashPath = `${MOUNT}${route.path}/`;
 
         it(`${route.method.toUpperCase()} ${route.path}/ (${route.auth} auth) results in 404 even with valid credentials (strict routing rejects the optional trailing slash)`, async() => {
-            const validHeaders = route.auth === 'admin'
-                ? { 'admin-token': ADMIN_TOKEN }
-                : { 'user-token': USER_TOKEN };
+            const validHeaders = route.auth === 'admin' ?
+                { 'admin-token': ADMIN_TOKEN } :
+                { 'user-token': USER_TOKEN };
 
             const res = await request(app)[route.method](trailingSlashPath).set(validHeaders);
 
