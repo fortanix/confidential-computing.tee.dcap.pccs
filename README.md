@@ -64,6 +64,6 @@ The [Compose guide](container/README.md) covers the original Rust integration
 container and database snapshot. GitHub Actions runs these as separate checks.
 
 The production image entrypoint is `./container/pccs/build.py --keep-image`.
-It uses the Debian 13 and Node 24.22.0 Dockerfile and requires a published branch/tag
+It uses the Debian 13 and Node 24.22.1 Dockerfile and requires a published branch/tag
 matching checkout HEAD. Detached checkouts must supply `--ref`; use `--help`
 for source, release and publishing options.

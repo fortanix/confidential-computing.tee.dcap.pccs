@@ -5,7 +5,7 @@ services:
       context: ..
       dockerfile: container/pccs/Dockerfile.test
       args:
-        NODE_VERSION: ${NODE_VERSION:-24.22.0}
+        NODE_VERSION: ${NODE_VERSION:-24.22.1}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz/ready', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 3s

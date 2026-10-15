@@ -11,10 +11,10 @@ Run it from the repository root:
 Docker Engine with Compose v2+ and network access to Docker Hub, package sources,
 GitHub, crates.io and Intel PCS are required. No host Rust installation is needed.
 
-- `pccs-dev` builds the current local `service/` checkout with Node `24.22.0`,
+- `pccs-dev` builds the current local `service/` checkout with Node `24.22.1`,
   installs production dependencies with `npm ci`, and starts PCCS over HTTP.
   `container/pccs/Dockerfile.test` replaces the old monorepo's test stage;
-  the production `service/container/Dockerfile` uses Debian 13 (slim runtime) and Node `24.22.0`.
+  the production `service/container/Dockerfile` uses Debian 13 (slim runtime) and Node `24.22.1`.
 - `container/pccs/test.json` and `test.db` retain the source configuration/data
   (only JSON trailing whitespace is normalized).
   The database is the original production-derived SQLite snapshot. PCCS upgrades

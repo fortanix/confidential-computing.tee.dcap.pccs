@@ -1,7 +1,7 @@
 # Copyright (c) Fortanix, Inc. SPDX-License-Identifier: BSD-3-Clause
 # Local-checkout equivalent of the original PCCS test stage.
 # Production builds continue to use service/container/Dockerfile unchanged.
-ARG NODE_VERSION=24.22.0
+ARG NODE_VERSION=24.22.1
 FROM node:${NODE_VERSION}-bookworm-slim
 ENV NODE_ENV=production
 WORKDIR /opt/intel/pccs

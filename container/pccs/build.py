@@ -29,7 +29,7 @@ Usage: ./container/pccs/build.py [options]
   --keep-image          Retain the final local image after a successful build
   --source URL          Clone URL (default: origin)
   --ref BRANCH_OR_TAG    Published ref (default: current branch)
-  --node-version VER    Node.js version to build (default: 24.22.0)
+  --node-version VER    Node.js version to build (default: 24.22.1)
   --help                Show this help
 The published ref must resolve to checkout HEAD. Local edits are not built.
 """
@@ -48,7 +48,7 @@ class Options:
     publish: str = ""
     source_url: str = ""
     selected_ref: str = ""
-    node_version: str = "24.22.0"
+    node_version: str = "24.22.1"
 
 
 @dataclass
