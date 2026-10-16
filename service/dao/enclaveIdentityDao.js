@@ -74,3 +74,15 @@ export async function getEnclaveIdentity(id, version, update_type, tcbedn = -1) 
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 }
+
+// Delete a specific EnclaveIdentity
+export async function deleteEnclaveIdentity(id, version, update_type, tcbedn = -1) {
+    return await EnclaveIdentities.destroy({
+        where: {
+            id,
+            version,
+            update_type,
+            tcbedn,
+        },
+    });
+}
