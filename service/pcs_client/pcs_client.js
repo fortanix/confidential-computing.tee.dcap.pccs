@@ -44,6 +44,13 @@ export function isEarlyAccessPortal(url) {
     return url.startsWith('https://validation.api.trustedservices.intel.com/');
 }
 
+function addApiKeyIfPresent(headers) {
+    if (Config.has('ApiKey') && Config.get('ApiKey') !== '') {
+        headers['Ocp-Apim-Subscription-Key'] = Config.get('ApiKey');
+    }
+    return headers;
+}
+
 async function doRequest(url, options) {
     const shortenUrl = parseAndShortenUrlForLogging(url);
     const startedAt = Date.now();
@@ -57,7 +64,7 @@ async function doRequest(url, options) {
             if (!options.headers) {
                 options.headers = {};
             }
-            options.headers['Ocp-Apim-Subscription-Key'] = Config.get('ApiKey');
+            addApiKeyIfPresent(options.headers);
         }
 
         // global options (proxy, timeout, etc)
@@ -116,7 +123,7 @@ export async function getCert(enc_ppid, cpusvn, pcesvn, pceid) {
       pceid: pceid,
     },
     method: 'GET',
-    headers: { 'Ocp-Apim-Subscription-Key': Config.get('ApiKey') },
+    headers: addApiKeyIfPresent({}),
   };
 
   return doRequest(Config.get('uri') + 'pckcert', options);
@@ -130,7 +137,7 @@ export async function getCerts(encPpid, pceid) {
             pceid,
         },
         method:  'GET',
-        headers: { 'Ocp-Apim-Subscription-Key': Config.get('ApiKey') },
+        headers: addApiKeyIfPresent({}),
     };
 
     return doRequest(`${Config.get('uri')}pckcerts`, options);
@@ -143,13 +150,18 @@ export async function getCertsWithManifest(platformManifest, pceid) {
             pceid,
         },
         method:  'POST',
-        headers: {
-            'Ocp-Apim-Subscription-Key': Config.get('ApiKey'),
-            'Content-Type':              'application/json',
-        },
+        headers: addApiKeyIfPresent({ 'Content-Type': 'application/json' }),
     };
 
     return doRequest(`${Config.get('uri')}pckcerts`, options);
+}
+
+export async function getTcbEvalDataNumbers(type) {
+    if (type !== Constants.PROD_TYPE_SGX && type !== Constants.PROD_TYPE_TDX) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+    }
+    const uri = `${Config.get('uri')}tcbevaluationdatanumbers`;
+    return doRequest(type === Constants.PROD_TYPE_TDX ? getTdxUrl(uri) : uri, { method: 'GET' });
 }
 
 export async function getPckCrl(ca) {
@@ -165,7 +177,7 @@ export async function getPckCrl(ca) {
     return doRequest(`${Config.get('uri')}pckcrl`, options);
 }
 
-export async function getTcb(type, fmspc, version, updateType) {
+export async function getTcb(type, fmspc, version, updateType, tcbedn = -1) {
     if (version === 3) {
         throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
@@ -173,7 +185,8 @@ export async function getTcb(type, fmspc, version, updateType) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
-    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
+    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY &&
+        !(updateType === Constants.UPDATE_TYPE_TCBEDN && Number.isSafeInteger(tcbedn) && tcbedn >= 0)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
@@ -181,7 +194,7 @@ export async function getTcb(type, fmspc, version, updateType) {
     const options = {
         searchParams: {
             fmspc,
-            update
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };
@@ -194,7 +207,7 @@ export async function getTcb(type, fmspc, version, updateType) {
     return doRequest(uri, options);
 }
 
-export async function getEnclaveIdentity(enclaveId, version, updateType) {
+export async function getEnclaveIdentity(enclaveId, version, updateType, tcbedn = -1) {
     if (version === 3) {
         throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
@@ -205,14 +218,15 @@ export async function getEnclaveIdentity(enclaveId, version, updateType) {
     ) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
-    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
+    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY &&
+        !(updateType === Constants.UPDATE_TYPE_TCBEDN && Number.isSafeInteger(tcbedn) && tcbedn >= 0)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 
     const options = {
         searchParams: {
-            update
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };

@@ -26,6 +26,9 @@ function makeHandler(name) {
 
 function makeControllerStubs() {
     return {
+        tcbEvalDataNumbersController: { getSgxTcbEvalDataNumbers: makeHandler('sgxEdn'), getTdxTcbEvalDataNumbers: makeHandler('tdxEdn') },
+        refreshHealthController:      { getHealth: makeHandler('refreshHealth') },
+        versionController:            { getVersion: makeHandler('getVersion') },
         platformsController:          { getPlatforms: makeHandler('getPlatforms'), postPlatforms: makeHandler('postPlatforms') },
         platformCollateralController: { putPlatformCollateral: makeHandler('putPlatformCollateral') },
         pckcertController:            { getPckCert: makeHandler('getPckCert') },
@@ -70,6 +73,7 @@ function makeServerDependencyMocks() {
             chmod:        () => {},
             readFileSync: () => 'test-pem',
         },
+        'http':                                    { createServer: () => ({ on: () => {}, listen: () => {} }) },
         'https':                                   { createServer: () => ({ on: () => {}, listen: () => {} }) },
         'node-cron':                               { 'default': { schedule: () => ({}) } },
         './services/refreshService.js':            { scheduledRefresh: () => {} },
@@ -185,5 +189,153 @@ describe('strict routing regression (trailing slash)', () => {
             expect(controllerSpyForRoute(route).called).to.equal(false);
             expect(authSpyForRoute(route).called).to.equal(false);
         });
+    });
+});
+
+describe('package version route', () => {
+    let app;
+    let controllers;
+
+    before(async() => {
+        controllers = makeControllerStubs();
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
+            './controllers/index.js': controllers,
+            './middleware/auth.js':   makeAuthStub(),
+        });
+        app = serverModule.default;
+    });
+
+    beforeEach(() => {
+        sinon.resetHistory();
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
+    });
+
+    ['/sgx/certification/v3/version', '/sgx/certification/v4/version'].forEach((path) => {
+        it(`GET ${path} does not require credentials and calls getVersion`, async() => {
+            const res = await request(app).get(path);
+
+            expect(res.status).to.equal(200);
+            expect(res.text).to.equal('getVersion');
+            expect(controllers.versionController.getVersion.calledOnce).to.equal(true);
+        });
+    });
+});
+
+describe('refresh health route', () => {
+    let app;
+    let controllers;
+
+    before(async() => {
+        controllers = makeControllerStubs();
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
+            './controllers/index.js': controllers,
+            './middleware/auth.js':   makeAuthStub(),
+        });
+        app = serverModule.default;
+    });
+
+    beforeEach(() => {
+        sinon.resetHistory();
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
+    });
+
+    it('GET /healthz/health returns refresh health and leaves live, ready, and startup checks', async() => {
+        const health = await request(app).get('/healthz/health');
+        const live = await request(app).get('/healthz/live');
+        const ready = await request(app).get('/healthz/ready');
+        const startup = await request(app).get('/healthz/startup');
+
+        expect(health.status).to.equal(200);
+        expect(health.text).to.equal('refreshHealth');
+        expect(controllers.refreshHealthController.getHealth.calledOnce).to.equal(true);
+        expect(live.status).to.equal(200);
+        expect(live.text).to.equal('getLiveness');
+        expect(ready.status).to.equal(200);
+        expect(ready.text).to.equal('getReadiness');
+        expect(startup.status).to.equal(200);
+        expect(startup.text).to.equal('getStartup');
+        expect(controllers.healthController.getLiveness.calledOnce).to.equal(true);
+        expect(controllers.healthController.getReadiness.calledOnce).to.equal(true);
+        expect(controllers.healthController.getStartup.calledOnce).to.equal(true);
+    });
+});
+
+describe('HTTP and HTTPS listener configuration', () => {
+    function listenerConfig(useHttps) {
+        return {
+            uri:                     'https://example.com/sgx/certification/v4/',
+            USE_HTTPS:               useHttps,
+            HTTP_PORT:               8080,
+            HTTPS_PORT:              8081,
+            hosts:                   '127.0.0.1',
+            DB_CONFIG:               'sqlite',
+            sqlite:                  { options: { storage: '/tmp/listener-test.db' } },
+            CachingFillMode:         'LAZY',
+            RefreshSchedule:         '0 0 * * *',
+            RequestTimeoutSeconds:   42,
+            HeadersTimeoutSeconds:   23,
+            KeepAliveTimeoutSeconds: 17,
+        };
+    }
+
+    async function loadServer(useHttps) {
+        const values = listenerConfig(useHttps);
+        const httpServer = { on: sinon.spy(), listen: sinon.spy() };
+        const httpsServer = { on: sinon.spy(), listen: sinon.spy() };
+        const httpCreate = sinon.stub().returns(httpServer);
+        const httpsCreate = sinon.stub().returns(httpsServer);
+        const readFileSync = sinon.stub().returns('test-pem');
+        const mocks = makeServerDependencyMocks();
+        mocks.config = { 'default': { has: key => key in values, get: key => values[key] } };
+        mocks.http = { createServer: httpCreate };
+        mocks.https = { createServer: httpsCreate };
+        mocks.fs = { chmod: () => {}, readFileSync };
+        await esmock.strict('./pccs_server.js', mocks, {
+            './controllers/index.js': makeControllerStubs(),
+            './middleware/auth.js':   makeAuthStub(),
+        });
+        // main() resolves its startup promise on a later turn.
+        await new Promise(resolve => setImmediate(resolve));
+        return { httpServer, httpsServer, httpCreate, httpsCreate, readFileSync };
+    }
+
+    it('starts HTTP on HTTP_PORT without reading TLS files when USE_HTTPS is false', async() => {
+        const { httpServer, httpCreate, httpsCreate, readFileSync } = await loadServer(false);
+
+        expect(httpCreate.calledOnce).to.equal(true);
+        expect(httpCreate.firstCall.args).to.have.length(1);
+        expect(httpCreate.firstCall.args[0]).to.be.a('function');
+        expect(httpsCreate.called).to.equal(false);
+        expect(readFileSync.callCount).to.equal(0);
+        expect(httpServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8080, '127.0.0.1']);
+        expect(httpServer.requestTimeout).to.equal(42000);
+        expect(httpServer.headersTimeout).to.equal(23000);
+        expect(httpServer.keepAliveTimeout).to.equal(17000);
+    });
+
+    it('starts HTTPS on HTTPS_PORT with the certificate options when USE_HTTPS is true', async() => {
+        const { httpsServer, httpCreate, httpsCreate, readFileSync } = await loadServer(true);
+
+        expect(httpsCreate.calledOnce).to.equal(true);
+        expect(httpCreate.called).to.equal(false);
+        expect(readFileSync.callCount).to.equal(2);
+        expect(httpsCreate.firstCall.args[0].key).to.equal('test-pem');
+        expect(httpsCreate.firstCall.args[0].cert).to.equal('test-pem');
+        expect(httpsCreate.firstCall.args[0].ciphers).to.include('TLS_AES_256_GCM_SHA384');
+        expect(httpsCreate.firstCall.args[1]).to.be.a('function');
+        expect(httpsServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8081, '127.0.0.1']);
+        expect(httpsServer.requestTimeout).to.equal(42000);
+        expect(httpsServer.headersTimeout).to.equal(23000);
+        expect(httpsServer.keepAliveTimeout).to.equal(17000);
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
     });
 });

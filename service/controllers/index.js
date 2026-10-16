@@ -40,8 +40,13 @@ import * as refreshController from './refreshController.js';
 import * as crlController from './crlController.js';
 import * as appraisalPolicyController from './appraisalPolicyController.js';
 import * as healthController from './healthController.js';
+import * as versionController from './versionController.js';
+import * as refreshHealthController from './refreshHealthController.js';
+
+import * as tcbEvalDataNumbersController from './tcbEvalDataNumbersController.js';
 
 export {
+    tcbEvalDataNumbersController,
     platformsController,
     platformCollateralController,
     pckcertController,
@@ -53,4 +58,6 @@ export {
     crlController,
     appraisalPolicyController,
     healthController,
+    versionController,
+    refreshHealthController,
 };

@@ -1,3 +1,5 @@
+import * as tcbEvalDataNumbersDao from '../../dao/tcbEvalDataNumbersDao.js';
+import { parseTcbEvalDataNumbersResponse } from '../../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -290,9 +292,12 @@ export async function getPckCrlFromPCS(ca) {
     };
 }
 
-export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
-    const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type);
+export async function getTcbInfoFromPCS(type, fmspc, version, update_type, tcbedn = -1) {
+    const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type, tcbedn);
 
+    if (pck_server_res.statusCode === Constants.HTTP_GONE) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_LONGER_AVAILABLE);
+    }
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
@@ -313,6 +318,7 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
             fmspc,
             version,
             update_type,
+            tcbedn,
             tcbinfo: result.tcbinfo,
         });
         // update or insert certificate chain
@@ -322,9 +328,12 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
     return result;
 }
 
-export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type) {
-    const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type);
+export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type, tcbedn = -1) {
+    const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type, tcbedn);
 
+    if (pck_server_res.statusCode === Constants.HTTP_GONE) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_LONGER_AVAILABLE);
+    }
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
@@ -335,7 +344,8 @@ export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type
             enclave_id,
             getBodyBuffer(pck_server_res),
             version,
-            update_type
+            update_type,
+            tcbedn
         );
         // update or insert certificate chain
         await pcsCertificatesDao.upsertEnclaveIdentityIssuerChain(
@@ -419,4 +429,13 @@ export async function getCrlFromPCS(uri) {
     await crlCacheDao.upsertCrl(uri, crl);
 
     return crl;
+}
+
+export async function getTcbEvalDataNumbersFromPCS(type) {
+    const result = parseTcbEvalDataNumbersResponse(await pcsClient.getTcbEvalDataNumbers(type));
+    await sequelize.transaction(async() => {
+        await tcbEvalDataNumbersDao.upsertTcbEvalDataNumbers(type, result.contents);
+        await pcsCertificatesDao.upsertTcbInfoIssuerChain(result[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]);
+    });
+    return result;
 }

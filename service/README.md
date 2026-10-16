@@ -2,21 +2,25 @@
 
 # Table of Contents
 
-- [Introduction](#introduction)
-- [How to install](#how-to-install)
+- [Provisioning Certificate Caching Service (PCCS)](#provisioning-certificate-caching-service-pccs)
+- [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [How to install](#how-to-install)
     - [Prerequisites](#prerequisites)
     - [Install via Linux Debian package installer](#install-via-linux-debian-package-installer)
+      - [Using interactive installer](#using-interactive-installer)
+      - [In non-interactive mode](#in-non-interactive-mode)
     - [Install via RPM package installer](#install-via-rpm-package-installer)
     - [Linux manual installation](#linux-manual-installation)
-- [Configuration file (`config/default.json`)](#configuration-file-configdefaultjson)
-- [Caching Fill Mode](#caching-fill-mode)
-    - [LAZY mode](#lazy-mode)
-    - [REQ mode](#req-mode)
-    - [OFFLINE mode](#offline-mode)
-- [Local service vs. Remote service](#local-service-vs-remote-service)
-- [Manage the PCCS service](#manage-the-pccs-service)
-- [Uninstall](#uninstall)
-- [Further reading](#further-reading)
+  - [Configuration file *(`config/default.json`)*](#configuration-file-configdefaultjson)
+  - [Caching Fill Mode](#caching-fill-mode)
+    - [`LAZY` mode](#lazy-mode)
+    - [`REQ` mode](#req-mode)
+    - [`OFFLINE` mode](#offline-mode)
+  - [Local service vs. Remote service](#local-service-vs-remote-service)
+  - [Manage the PCCS service](#manage-the-pccs-service)
+  - [Uninstall](#uninstall)
+  - [Further reading](#further-reading)
 
 ## Introduction
 
@@ -241,3 +245,8 @@ You should also change `'hosts'` to `0.0.0.0` to accept remote connections. Also
 
 1. The PCCS Design Guide is available at https://cc-enabling.trustedservices.intel.com/intel-sgx-tdx-pccs.
 2. There's a `Dockerfile` available for running the PCCS as a container. See the [README](container/README.md) in `container` subdirectory.
+
+HTTP deployments may set `USE_HTTPS` to `false` and `HTTP_PORT` to the desired
+port (default 8080). HTTPS remains the default. Both listeners use `hosts` and
+the configured request, headers and keepalive timeouts. Set `hosts` explicitly
+when exposing a container port. HTTP startup does not read TLS key files.

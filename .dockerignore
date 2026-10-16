@@ -1,0 +1,8 @@
+.git
+**/node_modules
+service/logs
+service/test-reports
+service/ssl_key
+service/*.db
+service/*.db-shm
+service/*.db-wal

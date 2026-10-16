@@ -1,3 +1,7 @@
+import * as cacheTimestampDao from '../dao/cacheTimestampDao.js';
+import { validateFmspcStr } from './validatorService.js';
+import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
+import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -97,18 +101,55 @@ async function fetchEnclaveIdentities() {
             };
         })
     );
+    for (const [enclaveId, version] of enclaveIdList) {
+        const numbers = new Map();
+        for (const item of retrievedEnclaveIdentities.filter(row => row.enclaveId === enclaveId && row.statusCode === Constants.HTTP_SUCCESS && row.identity)) {
+            try {
+                const number = JSON.parse(item.identity.toString('utf8')).enclaveIdentity?.tcbEvaluationDataNumber;
+                if (Number.isSafeInteger(number) && number > 0) {
+                    numbers.set(item.updateType, number);
+                }
+            } catch {
+                logger.warn(`Cannot extract evaluation number for enclave identity ${enclaveId}`);
+            }
+        }
+        const standard = numbers.get(Constants.UPDATE_TYPE_STANDARD);
+        const early = numbers.get(Constants.UPDATE_TYPE_EARLY);
+        if (!standard || !early) {
+            continue;
+        }
+        if (standard > early) {
+            logger.warn(`Invalid identity evaluation-number range: ${standard}..${early}`);
+            continue;
+        }
+        for (let tcbedn = standard; tcbedn <= early; tcbedn += 1) {
+            // Keep the range ordered instead of issuing an unbounded burst of requests.
+            // eslint-disable-next-line no-await-in-loop
+            const response = await pcsClient.getEnclaveIdentity(enclaveId, version, Constants.UPDATE_TYPE_TCBEDN, tcbedn);
+            retrievedEnclaveIdentities.push({
+                enclaveId,
+                version,
+                updateType: Constants.UPDATE_TYPE_TCBEDN,
+                tcbedn,
+                statusCode: response.statusCode,
+                identity:   getBodyBuffer(response),
+                headers:    response.headers
+            });
+        }
+    }
     return retrievedEnclaveIdentities;
 }
 
 // Persist enclave identities to DB (DB only, called within transaction)
 async function persistEnclaveIdentities(retrievedEnclaveIdentities) {
-    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, statusCode, identity }) => async() => {
+    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, tcbedn = -1, statusCode, identity }) => async() => {
         if (statusCode === Constants.HTTP_SUCCESS && identity !== null) {
             await enclaveIdentityDao.upsertEnclaveIdentity(
                 enclaveId,
                 identity,
                 version,
-                updateType
+                updateType,
+                tcbedn
             );
             return;
         }
@@ -390,13 +431,15 @@ async function fetchAllTcbs() {
                 tcb.type,
                 tcb.fmspc,
                 tcb.version,
-                tcb.update_type
+                tcb.update_type,
+                tcb.tcbedn ?? -1
             );
             return {
                 type:        tcb.type,
                 fmspc:       tcb.fmspc,
                 version:     tcb.version,
                 update_type: tcb.update_type,
+                tcbedn:      tcb.tcbedn ?? -1,
                 statusCode:  pckServerRes.statusCode,
                 tcbInfo:     getBodyBuffer(pckServerRes),
                 headers:     pckServerRes.headers
@@ -407,13 +450,14 @@ async function fetchAllTcbs() {
 
 // Persist TCB infos to DB (DB only, called within transaction)
 async function persistAllTcbs(downloadedTcbInfos) {
-    await runDbWriteOperations(downloadedTcbInfos.map(({ type, fmspc, version, update_type, statusCode, tcbInfo, headers }) => async() => {
+    await runDbWriteOperations(downloadedTcbInfos.map(({ type, fmspc, version, update_type, tcbedn, statusCode, tcbInfo, headers }) => async() => {
         if (statusCode === Constants.HTTP_SUCCESS && tcbInfo !== null) {
             await fmspcTcbDao.upsertFmspcTcb({
                 type,
                 fmspc,
                 version,
                 update_type,
+                tcbedn,
                 tcbinfo: tcbInfo,
             });
 
@@ -426,6 +470,11 @@ async function persistAllTcbs(downloadedTcbInfos) {
             return;
         }
 
+        if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
+            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}; deleting cached entry`);
+            await fmspcTcbDao.deleteFmspcTcb(type, fmspc, version, update_type, tcbedn);
+            return;
+        }
         logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }));
@@ -482,12 +531,15 @@ async function executeRefresh(type, fmspc) {
 
         // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
         const fetchStart = Date.now();
-        let pckCrlResults; let tcbResults; let enclaveResults;
+        let pckCrlResults; let tcbResults; let enclaveResults; let evaluationNumbers;
         if (global.PCS_VERSION > 3) {
-            [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
+            [pckCrlResults, tcbResults, enclaveResults, evaluationNumbers] = await Promise.all([
                 fetchAllPckCrls(),
                 fetchAllTcbs(),
                 fetchEnclaveIdentities(),
+                Promise.all([Constants.PROD_TYPE_SGX, Constants.PROD_TYPE_TDX].map(async type => ({
+                    type, ...parseTcbEvalDataNumbersResponse(await pcsClient.getTcbEvalDataNumbers(type)),
+                }))),
             ]);
         } else {
             logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
@@ -505,6 +557,10 @@ async function executeRefresh(type, fmspc) {
                 await persistAllPckCrls(pckCrlResults);
                 await persistAllTcbs(tcbResults);
                 await persistEnclaveIdentities(enclaveResults);
+                await runDbWriteOperations(evaluationNumbers.map(result => async() => {
+                    await tcbEvalDataNumbersDao.upsertTcbEvalDataNumbers(result.type, result.contents);
+                    await pcsCertificatesDao.upsertTcbInfoIssuerChain(result[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]);
+                }));
             }
             await persistRootcaCrl(rootcaCrlData);
             await persistCachedCrls(cachedCrlResults);
@@ -513,12 +569,31 @@ async function executeRefresh(type, fmspc) {
     }
 }
 
+async function executeRefreshAndRecord(type, fmspc) {
+    const key = type === 'certs' ? cacheTimestampDao.REFRESH_TYPE.CERTS : cacheTimestampDao.REFRESH_TYPE.DEFAULT;
+    try {
+        const result = await executeRefresh(type, fmspc);
+        await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), true, null));
+        return result;
+    } catch (error) {
+        try {
+            // Outside the failed collateral transaction; also serialize this write on SQLite.
+            await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), false, String(error)));
+        } catch (timestampError) {
+            logger.error(`Failed to record refresh failure: ${timestampError}`);
+        }
+        throw error;
+    }
+}
+
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
-    const lockKey = type === 'certs' ? `certs:${fmspc}` : 'collateral';
+    const normalizedFmspc = type === 'certs' ? validateFmspcStr(fmspc) : fmspc;
+
+    const lockKey = type === 'certs' ? `certs:${normalizedFmspc}` : 'collateral';
     if (activeRefreshes.has(lockKey)) {
         logger.info(`[refreshCache] Refresh for key=${lockKey} already in progress, awaiting shared result`);
         return activeRefreshes.get(lockKey);
@@ -526,7 +601,7 @@ export async function refreshCache(type, fmspc) {
 
     // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
     // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
-    const refreshPromise = executeRefresh(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
+    const refreshPromise = executeRefreshAndRecord(type, normalizedFmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }

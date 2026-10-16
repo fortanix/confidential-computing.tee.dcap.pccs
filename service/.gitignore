@@ -1,1 +1,9 @@
 ssl_key/
+
+# Local test state
+logs/
+*.db
+*.db-shm
+*.db-wal
+test-reports/
+.vitest/

@@ -121,3 +121,44 @@ describe('validatorService', () => {
         });
     });
 });
+
+
+describe('evaluation-number query validation', () => {
+    it('accepts an omitted update as STANDARD with sentinel tcbedn -1', () => {
+        expect(validatorService.validateTcbCollateralQueryParams({})).to.deep.equal({ updateType: 'STANDARD', tcbedn: -1 });
+    });
+
+    it('accepts update early as EARLY with sentinel tcbedn -1', () => {
+        expect(validatorService.validateTcbCollateralQueryParams({ update: 'early' })).to.deep.equal({ updateType: 'EARLY', tcbedn: -1 });
+    });
+
+    for (const value of ['0', '7', '9007199254740991']) {
+        it(`accepts explicit evaluation number ${value}`, () => {
+            expect(validatorService.validateTcbCollateralQueryParams({ tcbEvaluationDataNumber: value })).to.deep.equal({ updateType: 'TCBEDN', tcbedn: Number(value) });
+        });
+    }
+
+    for (const [why, value] of [
+        ['an empty string', ''],
+        ['a negative number', '-1'],
+        ['a fraction', '1.5'],
+        ['an exponent', '1e2'],
+        ['surrounding whitespace', ' 7'],
+        ['a non-hex suffix', '7x'],
+        ['an array', ['7']],
+        ['a value above Number.MAX_SAFE_INTEGER', '9007199254740992'],
+    ]) {
+        it(`rejects ${why}`, () => {
+            assertThrowsInvalidRequest(() => validatorService.validateTcbCollateralQueryParams({ tcbEvaluationDataNumber: value }));
+        });
+    }
+
+    for (const update of ['standard', 'early', '']) {
+        it(`rejects update ${JSON.stringify(update)} together with an evaluation number`, () => {
+            assertThrowsInvalidRequest(() => validatorService.validateTcbCollateralQueryParams({
+                update,
+                tcbEvaluationDataNumber: '7',
+            }));
+        });
+    }
+});

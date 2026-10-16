@@ -497,3 +497,95 @@ describe('pcs_client', () => {
         });
     });
 });
+
+
+describe('optional PCS subscription key', () => {
+    const portals = [
+        ['production', 'https://api.trustedservices.intel.com/sgx/certification/v4/'],
+        ['early-access', 'https://validation.api.trustedservices.intel.com/sgx/certification/v4/'],
+    ];
+
+    // node-config throws on Config.get of an unset key. The default test double
+    // returns '' instead, which would hide a removed Config.has('ApiKey') guard.
+    function throwOnMissingKey(ctx) {
+        const get = ctx.config.get.bind(ctx.config);
+        ctx.config.get = (key) => {
+            if (!ctx.config.has(key)) {
+                throw new Error(`Configuration property "${key}" is not defined`);
+            }
+            return get(key);
+        };
+    }
+
+    async function pckCertHeaders(ctx) {
+        const client = await ctx.getTarget();
+        await client.getCerts('ppid', '0000');
+        await client.getCertsWithManifest('manifest', '0000');
+        const byMethod = {};
+        for (const call of ctx.gotStub.getCalls()) {
+            byMethod[call.args[1].method] = call.args[1].headers;
+        }
+        return byMethod;
+    }
+
+    for (const [portal, uri] of portals) {
+        it(`omits Ocp-Apim-Subscription-Key when ApiKey is missing on the ${portal} portal`, async() => {
+            const ctx = new TestContext().setConfigValues({ uri });
+            throwOnMissingKey(ctx);
+            const headers = await pckCertHeaders(ctx);
+
+            expect(headers.GET).to.not.have.property('Ocp-Apim-Subscription-Key');
+            expect(headers.GET).to.not.have.property('Content-Type');
+            expect(headers.POST).to.not.have.property('Ocp-Apim-Subscription-Key');
+            expect(headers.POST['Content-Type']).to.equal('application/json');
+        });
+
+        it(`omits Ocp-Apim-Subscription-Key when ApiKey is blank on the ${portal} portal`, async() => {
+            const ctx = new TestContext().setConfigValues({ uri, ApiKey: '' });
+            throwOnMissingKey(ctx);
+            const headers = await pckCertHeaders(ctx);
+
+            expect(headers.GET).to.not.have.property('Ocp-Apim-Subscription-Key');
+            expect(headers.POST).to.not.have.property('Ocp-Apim-Subscription-Key');
+            expect(headers.POST['Content-Type']).to.equal('application/json');
+        });
+
+        it(`sends the configured key on GET and POST pckcerts on the ${portal} portal`, async() => {
+            const ctx = new TestContext().setConfigValues({ uri, ApiKey: 'subscription' });
+            throwOnMissingKey(ctx);
+            const headers = await pckCertHeaders(ctx);
+
+            expect(headers.GET['Ocp-Apim-Subscription-Key']).to.equal('subscription');
+            expect(headers.GET).to.not.have.property('Content-Type');
+            expect(headers.POST['Ocp-Apim-Subscription-Key']).to.equal('subscription');
+            expect(headers.POST['Content-Type']).to.equal('application/json');
+        });
+    }
+});
+
+
+describe('PCS evaluation-number list URLs', () => {
+    for (const [type, prefix] of [[PROD_TYPE_SGX, 'sgx'], [PROD_TYPE_TDX, 'tdx']]) {
+        it(`uses the v4 ${prefix} list endpoint`, async() => {
+            const ctx = new TestContext();
+            const client = await ctx.getTarget();
+            await client.getTcbEvalDataNumbers(type);
+            expect(ctx.gotStub.firstCall.args[0]).to.equal(`https://api.trustedservices.intel.com/${prefix}/certification/v4/tcbevaluationdatanumbers`);
+        });
+    }
+});
+
+
+describe('PCS evaluation-number selection', () => {
+    for (const method of ['getTcb', 'getEnclaveIdentity']) {
+        it(`sends only the explicit evaluation number for ${method}`, async() => {
+            const ctx = new TestContext();
+            const client = await ctx.getTarget();
+            const args = method === 'getTcb' ? [PROD_TYPE_SGX, ctx.testFmspc, 4] : [QE_IDENTITY_ID, 4];
+            await client[method](...args, Constants.UPDATE_TYPE_TCBEDN, 7);
+            const query = ctx.gotStub.firstCall.args[1].searchParams;
+            expect(query.tcbEvaluationDataNumber).to.equal(7);
+            expect(query).not.to.have.property('update');
+        });
+    }
+});

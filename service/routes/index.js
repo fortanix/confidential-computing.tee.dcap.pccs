@@ -44,6 +44,9 @@ import {
     crlController,
     appraisalPolicyController,
     healthController,
+    versionController,
+    refreshHealthController,
+    tcbEvalDataNumbersController,
 } from '../controllers/index.js';
 import * as auth from '../middleware/auth.js';
 
@@ -84,6 +87,8 @@ sgxRouter.route('/rootcacrl').get(rootcacrlController.getRootCaCrl);
 
 sgxRouter.route('/crl').get(crlController.getCrl);
 
+sgxRouter.route('/version').get(versionController.getVersion);
+
 sgxRouter
     .route('/refresh')
     .post(auth.validateAdmin, refreshController.refreshCache)
@@ -99,7 +104,12 @@ tdxRouter.route('/tcb').get(tcbinfoController.getTdxTcbInfo);
 
 tdxRouter.route('/qe/identity').get(identityController.getTdQeIdentity);
 
+sgxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.getSgxTcbEvalDataNumbers);
+tdxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.getTdxTcbEvalDataNumbers);
+
 //---------------- Routes for health probes--------------------------
+healthRouter.route('/health').get(refreshHealthController.getHealth);
+
 healthRouter.route('/live').get(healthController.getLiveness);
 
 healthRouter.route('/ready').get(healthController.getReadiness);
