@@ -471,7 +471,8 @@ async function persistAllTcbs(downloadedTcbInfos) {
         }
 
         if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
-            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}`);
+            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}; deleting cached entry`);
+            await fmspcTcbDao.deleteFmspcTcb(type, fmspc, version, update_type, tcbedn);
             return;
         }
         logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);

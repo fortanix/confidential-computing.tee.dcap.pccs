@@ -56,6 +56,19 @@ describe('migration 07 and composite cache keys', () => {
         await db.query(sql);
     }
 
+    it('deletes a specific TCB row by its composite key', async() => {
+        const runner = migrator(db, '07');
+        await runner.up();
+        FmspcTcbs.init(db);
+        const models = { FmspcTcbs, EnclaveIdentities, sequelize: db };
+        const tcbs = await esmock('../dao/fmspcTcbDao.js', { '../dao/models/index.js': models });
+        await tcbs.upsertFmspcTcb({ type: 0, fmspc: '001122334455', version: 4, update_type: 'TCBEDN', tcbedn: 7, tcbinfo: Buffer.from('tcb-7') });
+        await db.query("INSERT INTO pcs_certificates (id,cert,created_time,updated_time) VALUES (1,'root','2025-01-01','2025-01-01'),(3,'signing','2025-01-01','2025-01-01')");
+        expect(await tcbs.getTcbInfo(0, '001122334455', 4, 'TCBEDN', 7)).to.not.be.null;
+        await tcbs.deleteFmspcTcb(0, '001122334455', 4, 'TCBEDN', 7);
+        expect(await tcbs.getTcbInfo(0, '001122334455', 4, 'TCBEDN', 7)).to.be.null;
+    });
+
     it('restores a legacy backup when the source table is already gone', async() => {
         await renameTable('fmspc_tcbs', 'fmspc_tcbs_backup');
         await renameTable('enclave_identities', 'enclave_identities_backup');

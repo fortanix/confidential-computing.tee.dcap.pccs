@@ -126,6 +126,7 @@ class TestContext {
         this.fmspcTcbDao = {
             getAllTcbs:        sinon.stub().resolves([makeDbTcb()]),
             upsertFmspcTcb:    sinon.stub().resolves(),
+            deleteFmspcTcb:    sinon.stub().resolves(),
             deleteInvalidTcbs: sinon.stub().resolves()
         };
         this.pckCertchainDao = {
@@ -1013,7 +1014,7 @@ describe('refresh of cached evaluation-number TCB entries', () => {
         ['not found', Constants.HTTP_NOT_FOUND],
         ['gone', Constants.HTTP_GONE],
     ]) {
-        it(`keeps a cached evaluation-number TCB when PCS returns ${why}`, async() => {
+        it(`deletes a cached evaluation-number TCB when PCS returns ${why}`, async() => {
             const c = new TestContext();
             c.fmspcTcbDao.getAllTcbs.resolves([{
                 ...makeDbTcb(),
@@ -1029,6 +1030,30 @@ describe('refresh of cached evaluation-number TCB entries', () => {
                 Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
             )).to.equal(true);
             expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+            expect(c.fmspcTcbDao.deleteFmspcTcb.calledWith(
+                Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+            )).to.equal(true);
+        });
+
+        it(`deletes a standard TCB when PCS returns ${why}`, async() => {
+            const c = new TestContext();
+            c.fmspcTcbDao.getAllTcbs.resolves([{
+                ...makeDbTcb(),
+                update_type: Constants.UPDATE_TYPE_STANDARD,
+                tcbedn:      -1,
+            }]);
+            c.pcsClient.getTcb.resolves(makeTcbResponse(status));
+            const target = await c.getTarget();
+
+            await target.refreshCache();
+
+            expect(c.pcsClient.getTcb.calledWith(
+                Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_STANDARD, -1
+            )).to.equal(true);
+            expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+            expect(c.fmspcTcbDao.deleteFmspcTcb.calledWith(
+                Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_STANDARD, -1
+            )).to.equal(true);
         });
     }
 });
