@@ -1,7 +1,3 @@
-import * as cacheTimestampDao from '../dao/cacheTimestampDao.js';
-import { validateFmspcStr } from './validatorService.js';
-import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
-import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -49,10 +45,14 @@ import * as pcsCertificatesDao from '../dao/pcsCertificatesDao.js';
 import * as crlCacheDao from '../dao/crlCacheDao.js';
 import * as pcsClient from '../pcs_client/pcs_client.js';
 import * as appUtil from '../utils/apputil.js';
+import * as cacheTimestampDao from '../dao/cacheTimestampDao.js';
+import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
 import { getBodyBuffer } from '../utils/responseBody.js';
 import { sequelize } from '../dao/models/index.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
+import { validateFmspcStr } from './validatorService.js';
+import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 
 function useSequentialDbWrites() {
     return Config.get('DB_CONFIG') === 'sqlite';
