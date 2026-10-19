@@ -1,5 +1,3 @@
-import * as tcbEvalDataNumbersDao from '../../dao/tcbEvalDataNumbersDao.js';
-import { parseTcbEvalDataNumbersResponse } from '../../utils/tcbEvalDataNumbers.js';
 /*
  * Copyright (C) 2011-2026 Intel Corporation
  *
@@ -46,10 +44,12 @@ import * as platformsDao from '../../dao/platformsDao.js';
 import * as crlCacheDao from '../../dao/crlCacheDao.js';
 import * as pcsClient from '../../pcs_client/pcs_client.js';
 import * as appUtil from '../../utils/apputil.js';
+import * as tcbEvalDataNumbersDao from '../../dao/tcbEvalDataNumbersDao.js';
 import { getBodyBuffer, isSuccessfulResponseWithBody, parsePckServerResponseBody } from '../../utils/responseBody.js';
 import { sequelize } from '../../dao/models/index.js';
 import { cachingModeManager } from '../caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../../pckCertSelection/pckCertSelection.js';
+import { parseTcbEvalDataNumbersResponse } from '../../utils/tcbEvalDataNumbers.js';
 
 async function getPckServerResponse(platform_manifest, enc_ppid, pceid) {
     if (platform_manifest) {
