@@ -43,6 +43,9 @@ define('PLATF_REG_NOT_AVAILABLE', 1);
 define('PLATF_REG_DELETED', 9);
 
 define('HTTP_SUCCESS', 200);
+define('UPDATE_TYPE_TCBEDN', 'TCBEDN');
+define('HTTP_NOT_FOUND', 404);
+define('HTTP_GONE', 410);
 define('TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN', 'TCB-Evaluation-Data-Numbers-Issuer-Chain');
 
 //
