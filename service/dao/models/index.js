@@ -51,9 +51,11 @@ const db_namespace = clshooked.createNamespace('pccs-db-namespace');
 Sequelize.useCLS(db_namespace);
 
 import TcbEvalDataNumbers from './tcb_eval_data_numbers.js';
+import CacheTimestamp from './cache_timestamp.js';
 
 function initModels(sequelize) {
     TcbEvalDataNumbers.init(sequelize);
+    CacheTimestamp.init(sequelize);
     FmspcTcbs.init(sequelize);
     PckCert.init(sequelize);
     PckCertchain.init(sequelize);
@@ -146,6 +148,7 @@ initModels(sequelize); // Initialize all models
 
 export {
     TcbEvalDataNumbers,
+    CacheTimestamp,
     Sequelize,
     sequelize,
     FmspcTcbs,
