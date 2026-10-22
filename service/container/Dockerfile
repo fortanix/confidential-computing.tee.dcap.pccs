@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # Declare nodejs version you want to use
-ARG NODE_VERSION=24.15.0
+ARG NODE_VERSION=24.22.0
 
 # Declare directories when source will be copied and service will be built
 # this need to match the directory location in the cloned source layout
@@ -10,7 +10,7 @@ ARG SRC_OUTPUT_DIR=/pccs
 ARG BUILD_OUTPUT_DIR=${SRC_OUTPUT_DIR}/service
 
 # Use multi-stage builds to reduce final image size
-FROM docker.io/library/debian:12 AS builder
+FROM docker.io/library/debian:13 AS builder
 
 # Define arguments used across multiple stages
 ARG DCAP_VERSION=main
@@ -59,7 +59,7 @@ RUN npm config set proxy $http_proxy \
     && npm install
 
 # Start final image build
-FROM docker.io/library/debian:12-slim
+FROM docker.io/library/debian:13-slim
 
 ARG NODE_VERSION
 # Set NODE_ENV to production

@@ -42,3 +42,28 @@ Pre-packaged installers of both the **PCCS Service** (`sgx-dcap-pccs`) and the *
 * specific version: https://download.01.org/intel-sgx/sgx-dcap/
 
 Additionally, for Ubuntu the packages are available in the online repository hosted at https://download.01.org/intel-sgx/sgx_repo/ubuntu/ ([setup instructions](https://cc-enabling.trustedservices.intel.com/intel-tdx-enabling-guide/02/infrastructure_setup/#__tabbed_1_2)).
+
+## Fortanix verification
+
+From the repository root:
+
+```bash
+cd service
+npm ci
+npm run test:all
+npm run eslint -- .
+npm run test:live
+cd ..
+./run_docker_compose_test.sh
+```
+
+`test:all` runs the native Vitest checks and the upstream Mocha suite without live
+PCS access. `test:live` verifies refresh against Intel SGX PCS using a temporary
+PCCS process and SQLite database; see the [live test guide](service/test/live/README.md).
+The [Compose guide](container/README.md) covers the original Rust integration
+container and database snapshot. GitHub Actions runs these as separate checks.
+
+The production image entrypoint is `./container/pccs/build.py --keep-image`.
+It uses the Debian 13 and Node 24.22.0 Dockerfile and requires a published branch/tag
+matching checkout HEAD. Detached checkouts must supply `--ref`; use `--help`
+for source, release and publishing options.
