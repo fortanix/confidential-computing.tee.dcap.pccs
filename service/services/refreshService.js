@@ -154,6 +154,12 @@ async function persistEnclaveIdentities(retrievedEnclaveIdentities) {
             return;
         }
 
+        if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
+            logger.info(`Enclave identity collateral retired for id:${enclaveId}, version:${version}, type:${updateType}, tcbedn:${tcbedn}, status:${statusCode}; deleting cached entry`);
+            await enclaveIdentityDao.deleteEnclaveIdentity(enclaveId, version, updateType, tcbedn);
+            return;
+        }
+
         logger.debug("Couldn't get enclave identity for (id:%d,version:%d,type:%s)", enclaveId, version, updateType);
     }));
 
@@ -471,7 +477,8 @@ async function persistAllTcbs(downloadedTcbInfos) {
         }
 
         if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
-            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}`);
+            logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}; deleting cached entry`);
+            await fmspcTcbDao.deleteFmspcTcb(type, fmspc, version, update_type, tcbedn);
             return;
         }
         logger.error(`Failed to get tcbinfo for fmspc:${fmspc}`);
