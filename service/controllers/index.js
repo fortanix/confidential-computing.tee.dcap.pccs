@@ -42,7 +42,10 @@ import * as appraisalPolicyController from './appraisalPolicyController.js';
 import * as healthController from './healthController.js';
 import * as versionController from './versionController.js';
 
+import * as tcbEvalDataNumbersController from './tcbEvalDataNumbersController.js';
+
 export {
+    tcbEvalDataNumbersController,
     platformsController,
     platformCollateralController,
     pckcertController,
