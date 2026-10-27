@@ -574,3 +574,18 @@ describe('PCS evaluation-number list URLs', () => {
         });
     }
 });
+
+
+describe('PCS evaluation-number selection', () => {
+    for (const method of ['getTcb', 'getEnclaveIdentity']) {
+        it(`sends only the explicit evaluation number for ${method}`, async() => {
+            const ctx = new TestContext();
+            const client = await ctx.getTarget();
+            const args = method === 'getTcb' ? [PROD_TYPE_SGX, ctx.testFmspc, 4] : [QE_IDENTITY_ID, 4];
+            await client[method](...args, Constants.UPDATE_TYPE_TCBEDN, 7);
+            const query = ctx.gotStub.firstCall.args[1].searchParams;
+            expect(query.tcbEvaluationDataNumber).to.equal(7);
+            expect(query).not.to.have.property('update');
+        });
+    }
+});

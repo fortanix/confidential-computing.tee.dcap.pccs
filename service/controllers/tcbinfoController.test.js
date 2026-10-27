@@ -124,3 +124,23 @@ describe('tcbinfoController', () => {
         });
     });
 });
+
+
+describe('explicit evaluation number in getSgxTcbInfo', () => {
+    it('passes tcbEvaluationDataNumber 7 without an update and returns the TCB info', async() => {
+        const ctx = new TestContext();
+        ctx.update = undefined;
+        ctx.tcbinfoService.getTcbInfo.resolves(ctx.getExpectedTcbInfo());
+        const target = await ctx.getTarget();
+        const req = ctx.getRequest();
+        expect(req.query).to.not.have.property('update');
+        req.query.tcbEvaluationDataNumber = '7';
+
+        await target.getSgxTcbInfo(req, ctx.response, ctx.next);
+
+        expect(ctx.tcbinfoService.getTcbInfo.calledWith(
+            Constants.PROD_TYPE_SGX, ctx.fmspc.toUpperCase(), 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+        ctx.verifyPositiveResponse();
+    });
+});

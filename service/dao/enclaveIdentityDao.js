@@ -34,11 +34,12 @@ import PccsError from '../utils/PccsError.js';
 import PccsStatus from '../constants/pccs_status_code.js';
 import { EnclaveIdentities, sequelize } from './models/index.js';
 
-export async function upsertEnclaveIdentity(id, identity, version, update_type) {
+export async function upsertEnclaveIdentity(id, identity, version, update_type, tcbedn = -1) {
     return await EnclaveIdentities.upsert({
         id,
         version,
         update_type,
+        tcbedn,
         identity,
         root_cert_id:    Constants.ROOT_CERT_ID,
         signing_cert_id: Constants.PROCESSOR_SIGNING_CERT_ID,
@@ -46,17 +47,17 @@ export async function upsertEnclaveIdentity(id, identity, version, update_type) 
 }
 
 //Query EnclaveIdentity
-export async function getEnclaveIdentity(id, version, update_type) {
+export async function getEnclaveIdentity(id, version, update_type, tcbedn = -1) {
     const sql =
     'select a.*,' +
     ' (select cert from pcs_certificates where id=a.root_cert_id) as root_cert,' +
     ' (select cert from pcs_certificates where id=a.signing_cert_id) as signing_cert' +
     ' from enclave_identities a ' +
     ' where a.id=$id and a.version=$version ' +
-    ' and a.update_type=$update_type';
+    ' and a.update_type=$update_type and a.tcbedn=$tcbedn';
     const enclave_identity = await sequelize.query(sql, {
         type: sequelize.QueryTypes.SELECT,
-        bind: { id, version, update_type },
+        bind: { id, version, update_type, tcbedn },
     });
     if (enclave_identity.length === 0) {
         return null;
