@@ -292,8 +292,8 @@ export async function getPckCrlFromPCS(ca) {
     };
 }
 
-export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
-    const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type);
+export async function getTcbInfoFromPCS(type, fmspc, version, update_type, tcbedn = -1) {
+    const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type, tcbedn);
 
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
@@ -315,6 +315,7 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
             fmspc,
             version,
             update_type,
+            tcbedn,
             tcbinfo: result.tcbinfo,
         });
         // update or insert certificate chain
@@ -324,8 +325,8 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type) {
     return result;
 }
 
-export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type) {
-    const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type);
+export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type, tcbedn = -1) {
+    const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type, tcbedn);
 
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
@@ -337,7 +338,8 @@ export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type
             enclave_id,
             getBodyBuffer(pck_server_res),
             version,
-            update_type
+            update_type,
+            tcbedn
         );
         // update or insert certificate chain
         await pcsCertificatesDao.upsertEnclaveIdentityIssuerChain(
