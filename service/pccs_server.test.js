@@ -252,6 +252,8 @@ describe('refresh health route', () => {
         const v4Health = await request(app).get('/sgx/certification/v4/health');
         const live = await request(app).get('/healthz/live');
         const ready = await request(app).get('/healthz/ready');
+        const v3Ready = await request(app).get('/sgx/certification/v3/readiness');
+        const v4Ready = await request(app).get('/sgx/certification/v4/readiness');
         const startup = await request(app).get('/healthz/startup');
 
         expect(health.status).to.equal(200);
@@ -265,10 +267,14 @@ describe('refresh health route', () => {
         expect(live.text).to.equal('getLiveness');
         expect(ready.status).to.equal(200);
         expect(ready.text).to.equal('getReadiness');
+        expect(v3Ready.status).to.equal(200);
+        expect(v3Ready.text).to.equal('getReadiness');
+        expect(v4Ready.status).to.equal(200);
+        expect(v4Ready.text).to.equal('getReadiness');
         expect(startup.status).to.equal(200);
         expect(startup.text).to.equal('getStartup');
         expect(controllers.healthController.getLiveness.calledOnce).to.equal(true);
-        expect(controllers.healthController.getReadiness.callCount).to.equal(1);
+        expect(controllers.healthController.getReadiness.callCount).to.equal(3);
         expect(controllers.healthController.getStartup.calledOnce).to.equal(true);
     });
 });

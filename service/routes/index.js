@@ -108,6 +108,7 @@ sgxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.ge
 tdxRouter.route('/tcbevaluationdatanumbers').get(tcbEvalDataNumbersController.getTdxTcbEvalDataNumbers);
 
 sgxRouter.route('/health').get(refreshHealthController.getHealth);
+sgxRouter.route('/readiness').get(healthController.getReadiness);
 
 //---------------- Routes for health probes--------------------------
 healthRouter.route('/health').get(refreshHealthController.getHealth);
