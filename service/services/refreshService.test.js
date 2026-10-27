@@ -92,14 +92,16 @@ class TestContext {
             get: sinon.stub().callsFake(key => (key === 'DB_CONFIG' ? 'sqlite' : undefined))
         };
 
+        this.ednDao = { upsertTcbEvalDataNumbers: sinon.stub().resolves() };
         this.pcsClient = {
-            getCerts:             sinon.stub().resolves(makeCertResponse()),
-            getCertsWithManifest: sinon.stub().resolves(makeCertResponse()),
-            getPckCrl:            sinon.stub().resolves(makeCrlResponse()),
-            getTcb:               sinon.stub().resolves(makeTcbResponse()),
-            getEnclaveIdentity:   sinon.stub().resolves(makeIdentityResponse()),
-            getFileFromUrl:       sinon.stub().resolves(CRL_DATA),
-            getHeaderValue:       sinon.stub().callsFake((headers, key) => headers[key])
+            getTcbEvalDataNumbers: sinon.stub().resolves({ statusCode: 200, body: 'edn', headers: { 'tcb-evaluation-data-numbers-issuer-chain': 'edn-issuer-chain' } }),
+            getCerts:              sinon.stub().resolves(makeCertResponse()),
+            getCertsWithManifest:  sinon.stub().resolves(makeCertResponse()),
+            getPckCrl:             sinon.stub().resolves(makeCrlResponse()),
+            getTcb:                sinon.stub().resolves(makeTcbResponse()),
+            getEnclaveIdentity:    sinon.stub().resolves(makeIdentityResponse()),
+            getFileFromUrl:        sinon.stub().resolves(CRL_DATA),
+            getHeaderValue:        sinon.stub().callsFake((headers, key) => headers[key])
         };
 
         this.pckcertDao = {
@@ -172,6 +174,7 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./refreshService.js', {
+            '../dao/tcbEvalDataNumbersDao.js':         this.ednDao,
             '../utils/PccsError.js':                   { 'default': MockPccsError },
             '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
@@ -779,7 +782,9 @@ describe('refreshService', () => {
             expect(arg.fmspc).to.equal(FMSPC);
             expect(arg.version).to.equal(4);
             expect(arg.update_type).to.equal(Constants.UPDATE_TYPE_STANDARD);
-            expect(c.pcsCertificatesDao.upsertTcbInfoIssuerChain.calledOnce).to.be.true;
+            const tcbChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+                .filter(call => call.args[0] === ISSUER_CHAIN);
+            expect(tcbChains).to.have.length(1);
         });
 
         it('skips upsertEnclaveIdentity for failed identity fetches', async() => {
@@ -947,5 +952,44 @@ describe('refreshService', () => {
 
             expect(c.logger.error.calledWithMatch('Scheduled cache refresh failed')).to.be.true;
         });
+    });
+});
+
+
+describe('scheduled evaluation-number refresh', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    it('writes SGX and TDX lists fetched before the collateral transaction', async() => {
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await target.scheduledRefresh();
+
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX)).to.equal(true);
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX)).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX, Buffer.from('edn'))).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX, Buffer.from('edn'))).to.equal(true);
+        const ednChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+            .filter(call => call.args[0] === 'edn-issuer-chain');
+        expect(ednChains).to.have.length(2);
+        expect(c.pcsClient.getTcbEvalDataNumbers.lastCall.calledBefore(c.sequelize.transaction.firstCall)).to.equal(true);
+    });
+
+    it('skips only the failed evaluation-number list and completes the rest of the refresh when a list returns 503', async() => {
+        const c = new TestContext();
+        c.pcsClient.getTcbEvalDataNumbers.withArgs(Constants.PROD_TYPE_SGX).resolves({ statusCode: 503, headers: {} });
+        const target = await c.getTarget();
+
+        await target.refreshCache('collateral');
+
+        expect(c.sequelize.transaction.calledOnce).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX)).to.equal(false);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX, Buffer.from('edn'))).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.calledOnce).to.equal(true);
+        expect(c.logger.warn.calledWithMatch(
+            `Failed to get TCB evaluation data numbers for type ${Constants.PROD_TYPE_SGX}`
+        )).to.equal(true);
     });
 });

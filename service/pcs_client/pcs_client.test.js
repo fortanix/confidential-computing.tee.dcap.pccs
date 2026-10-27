@@ -562,3 +562,15 @@ describe('optional PCS subscription key', () => {
         });
     }
 });
+
+
+describe('PCS evaluation-number list URLs', () => {
+    for (const [type, prefix] of [[PROD_TYPE_SGX, 'sgx'], [PROD_TYPE_TDX, 'tdx']]) {
+        it(`uses the v4 ${prefix} list endpoint`, async() => {
+            const ctx = new TestContext();
+            const client = await ctx.getTarget();
+            await client.getTcbEvalDataNumbers(type);
+            expect(ctx.gotStub.firstCall.args[0]).to.equal(`https://api.trustedservices.intel.com/${prefix}/certification/v4/tcbevaluationdatanumbers`);
+        });
+    }
+});

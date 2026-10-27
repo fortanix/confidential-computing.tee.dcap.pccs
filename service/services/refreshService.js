@@ -45,10 +45,12 @@ import * as pcsCertificatesDao from '../dao/pcsCertificatesDao.js';
 import * as crlCacheDao from '../dao/crlCacheDao.js';
 import * as pcsClient from '../pcs_client/pcs_client.js';
 import * as appUtil from '../utils/apputil.js';
+import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
 import { getBodyBuffer } from '../utils/responseBody.js';
 import { sequelize } from '../dao/models/index.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
+import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 
 function useSequentialDbWrites() {
     return Config.get('DB_CONFIG') === 'sqlite';
@@ -431,6 +433,22 @@ async function persistAllTcbs(downloadedTcbInfos) {
     }));
 }
 
+// Fetch SGX and TDX TCB evaluation data number lists from PCS (HTTP only, non-fatal per list)
+async function fetchTcbEvalDataNumbers() {
+    const results = await Promise.all([Constants.PROD_TYPE_SGX, Constants.PROD_TYPE_TDX].map(async prodType => {
+        try {
+            return {
+                type: prodType,
+                ...parseTcbEvalDataNumbersResponse(await pcsClient.getTcbEvalDataNumbers(prodType)),
+            };
+        } catch (err) {
+            logger.warn(`Failed to get TCB evaluation data numbers for type ${prodType}: ${err.message || err}`);
+            return null;
+        }
+    }));
+    return results.filter(result => result !== null);
+}
+
 // Serializes transactions across *different* refresh keys when using SQLite: per-key coalescing
 // (activeRefreshes) only dedupes identical refreshes, so two distinct keys (e.g. different fmspc, or
 // certs vs collateral) could otherwise open concurrent transactions and hit SQLITE_BUSY once the busy
@@ -482,12 +500,13 @@ async function executeRefresh(type, fmspc) {
 
         // PHASE 1: Fetch all HTTP data in parallel (outside transaction)
         const fetchStart = Date.now();
-        let pckCrlResults; let tcbResults; let enclaveResults;
+        let pckCrlResults; let tcbResults; let enclaveResults; let evaluationNumbers;
         if (global.PCS_VERSION > 3) {
-            [pckCrlResults, tcbResults, enclaveResults] = await Promise.all([
+            [pckCrlResults, tcbResults, enclaveResults, evaluationNumbers] = await Promise.all([
                 fetchAllPckCrls(),
                 fetchAllTcbs(),
                 fetchEnclaveIdentities(),
+                fetchTcbEvalDataNumbers(),
             ]);
         } else {
             logger.warn('PCS API version 3 is no longer available. PCK CRLs, TCB Infos and Enclave Identities downloaded using API version 3 will not be refreshed.');
@@ -505,6 +524,10 @@ async function executeRefresh(type, fmspc) {
                 await persistAllPckCrls(pckCrlResults);
                 await persistAllTcbs(tcbResults);
                 await persistEnclaveIdentities(enclaveResults);
+                await runDbWriteOperations(evaluationNumbers.map(result => async() => {
+                    await tcbEvalDataNumbersDao.upsertTcbEvalDataNumbers(result.type, result.contents);
+                    await pcsCertificatesDao.upsertTcbInfoIssuerChain(result[Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]);
+                }));
             }
             await persistRootcaCrl(rootcaCrlData);
             await persistCachedCrls(cachedCrlResults);

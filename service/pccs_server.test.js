@@ -27,6 +27,7 @@ function makeHandler(name) {
 
 function makeControllerStubs() {
     return {
+        tcbEvalDataNumbersController: { getSgxTcbEvalDataNumbers: makeHandler('sgxEdn'), getTdxTcbEvalDataNumbers: makeHandler('tdxEdn') },
         versionController:            { getVersion: makeHandler('getVersion') },
         platformsController:          { getPlatforms: makeHandler('getPlatforms'), postPlatforms: makeHandler('postPlatforms') },
         platformCollateralController: { putPlatformCollateral: makeHandler('putPlatformCollateral') },
