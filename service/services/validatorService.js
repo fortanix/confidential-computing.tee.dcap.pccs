@@ -96,3 +96,14 @@ export function validateTcbCollateralQueryParams(query) {
     }
     return { updateType: Constants.UPDATE_TYPE_TCBEDN, tcbedn: Number(value) };
 }
+
+
+export function validateFmspcStr(value) {
+    if (value === undefined || value === null || value === '') {
+        return '';
+    }
+    if (typeof value !== 'string') {
+        throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+    }
+    return value.split(',').map(fmspc => validateAndNormalizeFmspc(fmspc)).join(',');
+}
