@@ -52,6 +52,8 @@ import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
 import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 
+const MAX_ENCLAVE_IDENTITY_EDN_SPAN = 100;
+
 function useSequentialDbWrites() {
     return Config.get('DB_CONFIG') === 'sqlite';
 }
@@ -80,6 +82,7 @@ async function fetchEnclaveIdentities() {
         [Constants.TDQE_IDENTITY_ID, 4],
     ];
     const updateTypes = [Constants.UPDATE_TYPE_STANDARD, Constants.UPDATE_TYPE_EARLY];
+    const cachedIdentities = await enclaveIdentityDao.getAllEnclaveIdentities();
     // Fetch data from PCS in parallel
     const retrievedEnclaveIdentities = await Promise.all(enclaveIdList
         .flatMap(([enclaveId, version]) => updateTypes.map(updateType => [enclaveId, version, updateType]))
@@ -99,18 +102,62 @@ async function fetchEnclaveIdentities() {
             };
         })
     );
+    for (const [enclaveId, version] of enclaveIdList) {
+        const evaluationNumbers = new Set(cachedIdentities
+            .filter(row => row.id === enclaveId && row.version === version &&
+                row.update_type === Constants.UPDATE_TYPE_TCBEDN &&
+                Number.isSafeInteger(row.tcbedn) && row.tcbedn >= 0)
+            .map(row => row.tcbedn));
+        const numbers = new Map();
+        for (const item of retrievedEnclaveIdentities.filter(row => row.enclaveId === enclaveId && row.statusCode === Constants.HTTP_SUCCESS && row.identity)) {
+            try {
+                const number = JSON.parse(item.identity.toString('utf8')).enclaveIdentity?.tcbEvaluationDataNumber;
+                if (Number.isSafeInteger(number) && number > 0) {
+                    numbers.set(item.updateType, number);
+                }
+            } catch {
+                logger.warn(`Cannot extract evaluation number for enclave identity ${enclaveId}`);
+            }
+        }
+        const standard = numbers.get(Constants.UPDATE_TYPE_STANDARD);
+        const early = numbers.get(Constants.UPDATE_TYPE_EARLY);
+        if (standard && early) {
+            if (standard > early || early - standard > MAX_ENCLAVE_IDENTITY_EDN_SPAN) {
+                logger.warn(`Invalid identity evaluation-number range: ${standard}..${early}`);
+            } else {
+                for (let tcbedn = standard; tcbedn <= early; tcbedn += 1) {
+                    evaluationNumbers.add(tcbedn);
+                }
+            }
+        }
+        for (const tcbedn of evaluationNumbers) {
+            // Keep requests ordered, including cached numbers outside the current range.
+            // eslint-disable-next-line no-await-in-loop
+            const response = await pcsClient.getEnclaveIdentity(enclaveId, version, Constants.UPDATE_TYPE_TCBEDN, tcbedn);
+            retrievedEnclaveIdentities.push({
+                enclaveId,
+                version,
+                updateType: Constants.UPDATE_TYPE_TCBEDN,
+                tcbedn,
+                statusCode: response.statusCode,
+                identity:   getBodyBuffer(response),
+                headers:    response.headers
+            });
+        }
+    }
     return retrievedEnclaveIdentities;
 }
 
 // Persist enclave identities to DB (DB only, called within transaction)
 async function persistEnclaveIdentities(retrievedEnclaveIdentities) {
-    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, statusCode, identity }) => async() => {
+    await runDbWriteOperations(retrievedEnclaveIdentities.map(({ enclaveId, version, updateType, tcbedn = -1, statusCode, identity }) => async() => {
         if (statusCode === Constants.HTTP_SUCCESS && identity !== null) {
             await enclaveIdentityDao.upsertEnclaveIdentity(
                 enclaveId,
                 identity,
                 version,
-                updateType
+                updateType,
+                tcbedn
             );
             return;
         }

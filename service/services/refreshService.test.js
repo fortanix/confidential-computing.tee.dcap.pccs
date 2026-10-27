@@ -109,7 +109,8 @@ class TestContext {
             upsertPckCert: sinon.stub().resolves()
         };
         this.enclaveIdentityDao = {
-            upsertEnclaveIdentity: sinon.stub().resolves()
+            getAllEnclaveIdentities: sinon.stub().resolves([]),
+            upsertEnclaveIdentity:   sinon.stub().resolves()
         };
         this.pckcrlDao = {
             getAllPckCrls: sinon.stub().resolves([{ ca: Constants.CA_PROCESSOR }]),
@@ -1029,4 +1030,181 @@ describe('refresh of cached evaluation-number TCB entries', () => {
             expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
         });
     }
+});
+
+
+describe('enclave-identity evaluation-number refresh', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    const ENCLAVE_IDS = [
+        Constants.QE_IDENTITY_ID,
+        Constants.QVE_IDENTITY_ID,
+        Constants.TDQE_IDENTITY_ID,
+    ];
+    const ENDPOINT_REQUESTS = ENCLAVE_IDS.flatMap(id => [
+        [id, Constants.UPDATE_TYPE_STANDARD],
+        [id, Constants.UPDATE_TYPE_EARLY],
+    ]);
+
+    function rangesForAll(standard, early) {
+        return {
+            [Constants.QE_IDENTITY_ID]:   { standard, early },
+            [Constants.QVE_IDENTITY_ID]:  { standard, early },
+            [Constants.TDQE_IDENTITY_ID]: { standard, early },
+        };
+    }
+
+    function withRanges(rangesById, respond) {
+        const c = new TestContext();
+        c.pcsClient.getEnclaveIdentity.callsFake(async(id, version, updateType, tcbedn) => {
+            if (respond) {
+                const overridden = respond(id, updateType, tcbedn);
+                if (overridden) {
+                    return overridden;
+                }
+            }
+            const range = rangesById[id];
+            let number = tcbedn;
+            if (updateType === Constants.UPDATE_TYPE_STANDARD) {
+                number = range.standard;
+            } else if (updateType === Constants.UPDATE_TYPE_EARLY) {
+                number = range.early;
+            }
+            return { ...makeIdentityResponse(), body: JSON.stringify({ enclaveIdentity: { tcbEvaluationDataNumber: number } }) };
+        });
+        return c;
+    }
+
+    function evaluationNumberPairs(calls, numberIndex, updateIndex) {
+        return calls
+            .filter(call => call.args[updateIndex] === Constants.UPDATE_TYPE_TCBEDN)
+            .map(call => [call.args[0], call.args[numberIndex]]);
+    }
+
+    function requestedEvaluationNumbers(c) {
+        return evaluationNumberPairs(c.pcsClient.getEnclaveIdentity.getCalls(), 3, 2);
+    }
+
+    function storedEvaluationNumbers(c) {
+        return evaluationNumberPairs(c.enclaveIdentityDao.upsertEnclaveIdentity.getCalls(), 4, 3);
+    }
+
+    function endpointRequests(c) {
+        return c.pcsClient.getEnclaveIdentity.getCalls()
+            .filter(call => call.args[2] !== Constants.UPDATE_TYPE_TCBEDN)
+            .map(call => [call.args[0], call.args[2]]);
+    }
+
+    it('stores each enclave\'s own numbers, skipping an inverted range', async() => {
+        const c = withRanges({
+            [Constants.QE_IDENTITY_ID]:   { standard: 9, early: 7 },
+            [Constants.QVE_IDENTITY_ID]:  { standard: 7, early: 7 },
+            [Constants.TDQE_IDENTITY_ID]: { standard: 2, early: 4 },
+        });
+        const target = await c.getTarget();
+
+        await target.refreshCache();
+
+        const expected = [
+            [Constants.QVE_IDENTITY_ID, 7],
+            [Constants.TDQE_IDENTITY_ID, 2],
+            [Constants.TDQE_IDENTITY_ID, 3],
+            [Constants.TDQE_IDENTITY_ID, 4],
+        ];
+        expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(c.pcsClient.getEnclaveIdentity.lastCall.calledBefore(c.sequelize.transaction.firstCall)).to.equal(true);
+        expect(c.logger.warn.getCalls().map(call => call.args[0]).filter(
+            message => String(message).startsWith('Invalid identity evaluation-number range')
+        )).to.deep.equal(['Invalid identity evaluation-number range: 9..7']);
+    });
+
+    it('refreshes the deduplicated union of cached explicit numbers and the current range', async() => {
+        const c = withRanges(rangesForAll(7, 9));
+        const row = { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN };
+        c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+            ...[5, 5, 7, 9, -1, 1.5, '6', null, Number.MAX_SAFE_INTEGER + 1].map(tcbedn => ({ ...row, tcbedn })),
+            { ...row, tcbedn: 6, version: 3 },
+            { ...row, tcbedn: 6, id: 999 },
+            { ...row, tcbedn: 6, update_type: Constants.UPDATE_TYPE_STANDARD },
+        ]);
+
+        await (await c.getTarget()).refreshCache();
+
+        const expected = [
+            [Constants.QE_IDENTITY_ID, 5],
+            [Constants.QE_IDENTITY_ID, 7],
+            [Constants.QE_IDENTITY_ID, 9],
+            [Constants.QE_IDENTITY_ID, 8],
+            ...ENCLAVE_IDS.slice(1).flatMap(id => [7, 8, 9].map(number => [id, number])),
+        ];
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(c.enclaveIdentityDao.getAllEnclaveIdentities.calledOnce).to.equal(true);
+        expect(c.enclaveIdentityDao.getAllEnclaveIdentities.firstCall.calledBefore(c.pcsClient.getEnclaveIdentity.firstCall)).to.equal(true);
+    });
+
+    for (const [standard, early] of [[9, 7], [1, 10000], [null, 9]]) {
+        it(`still refreshes cached explicit numbers when the current range is ${standard}..${early}`, async() => {
+            const c = withRanges(rangesForAll(standard, early));
+            c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+                { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN, tcbedn: 5 },
+            ]);
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([[Constants.QE_IDENTITY_ID, 5]]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal([[Constants.QE_IDENTITY_ID, 5]]);
+        });
+    }
+
+    it('skips an excessively large evaluation-number range and logs a warning', async() => {
+        const c = withRanges(rangesForAll(1, 10000));
+
+        await (await c.getTarget()).refreshCache();
+
+        expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal([]);
+        expect(storedEvaluationNumbers(c)).to.deep.equal([]);
+        expect(c.logger.warn.calledWith('Invalid identity evaluation-number range: 1..10000')).to.equal(true);
+    });
+
+    for (const [why, standard, early] of [
+        ['missing', null, 9],
+        ['not an integer', 1.5, 9],
+    ]) {
+        it(`does not request evaluation numbers when the standard endpoint number is ${why}`, async() => {
+            const c = withRanges(rangesForAll(standard, early));
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal([]);
+            expect(c.logger.warn.calledWithMatch('Invalid identity evaluation-number range')).to.equal(false);
+        });
+    }
+
+    it('keeps the rest of a 7..9 range when PCS reports QE evaluation number 8 gone', async() => {
+        const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+            if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 8) {
+                return makeIdentityResponse(Constants.HTTP_GONE);
+            }
+            return null;
+        });
+
+        await (await c.getTarget()).refreshCache();
+
+        const requested = ENCLAVE_IDS.flatMap(id => [
+            [id, 7],
+            [id, 8],
+            [id, 9],
+        ]);
+        const stored = requested.filter(pair => pair[0] !== Constants.QE_IDENTITY_ID || pair[1] !== 8);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(requested);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(stored);
+    });
 });
