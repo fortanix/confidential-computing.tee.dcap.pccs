@@ -46,6 +46,10 @@ export async function upsertEnclaveIdentity(id, identity, version, update_type, 
     });
 }
 
+export async function getAllEnclaveIdentities() {
+    return await EnclaveIdentities.findAll();
+}
+
 //Query EnclaveIdentity
 export async function getEnclaveIdentity(id, version, update_type, tcbedn = -1) {
     const sql =
