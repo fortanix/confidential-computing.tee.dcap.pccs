@@ -39,6 +39,7 @@ import cron from 'node-cron';
 import { sgxRouter, tdxRouter, healthRouter } from './routes/index.js';
 import * as fs from 'fs';
 import * as https from 'https';
+import * as http from 'http';
 import { constants as crypto_constants } from 'crypto';
 import { validateTokenHashes } from './middleware/auth.js';
 import * as error from './middleware/error.js';
@@ -202,6 +203,17 @@ function startHttpsServer() {
     }
 }
 
+function startHttpServer() {
+    const server = http.createServer(app);
+    server.requestTimeout = (Config.has('RequestTimeoutSeconds') ? Config.get('RequestTimeoutSeconds') : 60) * 1000;
+    server.headersTimeout = (Config.has('HeadersTimeoutSeconds') ? Config.get('HeadersTimeoutSeconds') : 30) * 1000;
+    server.keepAliveTimeout = (Config.has('KeepAliveTimeoutSeconds') ? Config.get('KeepAliveTimeoutSeconds') : 60) * 1000;
+    server.listen(Config.get('HTTP_PORT'), Config.get('hosts'), () => {
+        logger.info(`HTTP Server is running on port ${Config.get('HTTP_PORT')}`);
+        app.emit('app_started');
+    });
+}
+
 function scheduleRefreshJob() {
     cron.schedule(Config.get('RefreshSchedule'), refreshService.scheduledRefresh);
 }
@@ -211,7 +223,11 @@ async function main() {
     validateTokenHashes();
     configureMiddlewareAndRoutes();
     setCachingMode();
-    startHttpsServer();
+    if (Config.has('USE_HTTPS') && Config.get('USE_HTTPS') === false) {
+        startHttpServer();
+    } else {
+        startHttpsServer();
+    }
     scheduleRefreshJob();
 
     // the boot sequence completed; /healthz/startup may report STARTED
