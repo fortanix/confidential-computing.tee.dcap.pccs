@@ -295,6 +295,9 @@ export async function getPckCrlFromPCS(ca) {
 export async function getTcbInfoFromPCS(type, fmspc, version, update_type, tcbedn = -1) {
     const pck_server_res = await pcsClient.getTcb(type, fmspc, version, update_type, tcbedn);
 
+    if (pck_server_res.statusCode === Constants.HTTP_GONE) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_LONGER_AVAILABLE);
+    }
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
@@ -328,6 +331,9 @@ export async function getTcbInfoFromPCS(type, fmspc, version, update_type, tcbed
 export async function getEnclaveIdentityFromPCS(enclave_id, version, update_type, tcbedn = -1) {
     const pck_server_res = await pcsClient.getEnclaveIdentity(enclave_id, version, update_type, tcbedn);
 
+    if (pck_server_res.statusCode === Constants.HTTP_GONE) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_LONGER_AVAILABLE);
+    }
     if (!isSuccessfulResponseWithBody(pck_server_res)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
