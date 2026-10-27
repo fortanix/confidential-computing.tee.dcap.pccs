@@ -98,6 +98,19 @@ export async function getAllTcbs() {
     });
 }
 
+// Delete a specific TCBInfo
+export async function deleteFmspcTcb(type, fmspc, version, update_type, tcbedn = -1) {
+    return await FmspcTcbs.destroy({
+        where: {
+            type,
+            fmspc,
+            version,
+            update_type,
+            tcbedn,
+        },
+    });
+}
+
 //Delete TCBInfos whose type is null
 export async function deleteInvalidTcbs() {
     return await FmspcTcbs.destroy({

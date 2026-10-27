@@ -111,7 +111,8 @@ class TestContext {
         };
         this.enclaveIdentityDao = {
             getAllEnclaveIdentities: sinon.stub().resolves([]),
-            upsertEnclaveIdentity:   sinon.stub().resolves()
+            upsertEnclaveIdentity:   sinon.stub().resolves(),
+            deleteEnclaveIdentity:   sinon.stub().resolves()
         };
         this.pckcrlDao = {
             getAllPckCrls: sinon.stub().resolves([{ ca: Constants.CA_PROCESSOR }]),
@@ -127,6 +128,7 @@ class TestContext {
         this.fmspcTcbDao = {
             getAllTcbs:        sinon.stub().resolves([makeDbTcb()]),
             upsertFmspcTcb:    sinon.stub().resolves(),
+            deleteFmspcTcb:    sinon.stub().resolves(),
             deleteInvalidTcbs: sinon.stub().resolves()
         };
         this.pckCertchainDao = {
@@ -1011,26 +1013,65 @@ describe('refresh of cached evaluation-number TCB entries', () => {
         expect(c.pcsClient.getTcb.calledWith(Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7)).to.equal(true);
         expect(c.fmspcTcbDao.upsertFmspcTcb.firstCall.args[0].tcbedn).to.equal(7);
     });
+
+    it('deletes a cached evaluation-number TCB when PCS returns 410 Gone', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{
+            ...makeDbTcb(),
+            update_type: Constants.UPDATE_TYPE_TCBEDN,
+            tcbedn:      7,
+        }]);
+        c.pcsClient.getTcb.resolves(makeTcbResponse(Constants.HTTP_GONE));
+        const target = await c.getTarget();
+
+        await target.refreshCache();
+
+        expect(c.pcsClient.getTcb.calledWith(
+            Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+        expect(c.fmspcTcbDao.deleteFmspcTcb.calledOnceWithExactly(
+            Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+    });
+
+    it('does not delete a cached evaluation-number TCB when PCS returns 404 Not Found', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{
+            ...makeDbTcb(),
+            update_type: Constants.UPDATE_TYPE_TCBEDN,
+            tcbedn:      7,
+        }]);
+        c.pcsClient.getTcb.resolves(makeTcbResponse(Constants.HTTP_NOT_FOUND));
+        const target = await c.getTarget();
+
+        await assert.rejects(
+            () => target.refreshCache(),
+            err => err.status === PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]
+        );
+        expect(c.fmspcTcbDao.deleteFmspcTcb.called).to.equal(false);
+    });
+
     for (const [why, status] of [
         ['not found', Constants.HTTP_NOT_FOUND],
         ['gone', Constants.HTTP_GONE],
     ]) {
-        it(`keeps a cached evaluation-number TCB when PCS returns ${why}`, async() => {
+        it(`preserves a legacy standard (-1) TCB row and fails refresh when PCS returns ${why}`, async() => {
             const c = new TestContext();
             c.fmspcTcbDao.getAllTcbs.resolves([{
                 ...makeDbTcb(),
-                update_type: Constants.UPDATE_TYPE_TCBEDN,
-                tcbedn:      7,
+                update_type: Constants.UPDATE_TYPE_STANDARD,
+                tcbedn:      -1,
             }]);
             c.pcsClient.getTcb.resolves(makeTcbResponse(status));
             const target = await c.getTarget();
 
-            await target.refreshCache();
-
-            expect(c.pcsClient.getTcb.calledWith(
-                Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
-            )).to.equal(true);
+            await assert.rejects(
+                () => target.refreshCache(),
+                err => err.status === PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]
+            );
             expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+            expect(c.fmspcTcbDao.deleteFmspcTcb.called).to.equal(false);
         });
     }
 });
@@ -1191,7 +1232,7 @@ describe('enclave-identity evaluation-number refresh', () => {
         });
     }
 
-    it('keeps the rest of a 7..9 range when PCS reports QE evaluation number 8 gone', async() => {
+    it('deletes the retired identity and keeps the rest of a 7..9 range when PCS reports QE evaluation number 8 gone', async() => {
         const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
             if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 8) {
                 return makeIdentityResponse(Constants.HTTP_GONE);
@@ -1209,6 +1250,58 @@ describe('enclave-identity evaluation-number refresh', () => {
         const stored = requested.filter(pair => pair[0] !== Constants.QE_IDENTITY_ID || pair[1] !== 8);
         expect(requestedEvaluationNumbers(c)).to.deep.equal(requested);
         expect(storedEvaluationNumbers(c)).to.deep.equal(stored);
+        expect(c.enclaveIdentityDao.deleteEnclaveIdentity.calledOnceWithExactly(
+            Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_TCBEDN, 8
+        )).to.equal(true);
+    });
+
+    for (const status of [Constants.HTTP_GONE, Constants.HTTP_NOT_FOUND]) {
+        it(`checks cached EDNs below STANDARD and deletes only after their own PCS 410 (received ${status})`, async() => {
+            const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+                if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 5) {
+                    return makeIdentityResponse(status);
+                }
+                return null;
+            });
+            const row = { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN };
+            c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+                ...[5, 5, 7, -1].map(tcbedn => ({ ...row, tcbedn })),
+                { ...row, update_type: Constants.UPDATE_TYPE_STANDARD, tcbedn: -1 },
+            ]);
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([
+                [Constants.QE_IDENTITY_ID, 5],
+                ...ENCLAVE_IDS.flatMap(id => [7, 8, 9].map(number => [id, number])),
+            ]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal(
+                ENCLAVE_IDS.flatMap(id => [7, 8, 9].map(number => [id, number]))
+            );
+            if (status === Constants.HTTP_GONE) {
+                expect(c.enclaveIdentityDao.deleteEnclaveIdentity.calledOnceWithExactly(
+                    Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_TCBEDN, 5
+                )).to.equal(true);
+            } else {
+                expect(c.enclaveIdentityDao.deleteEnclaveIdentity.called).to.equal(false);
+            }
+        });
+    }
+
+    it('does not delete cached enclave identities on PCS 404 or for legacy (-1) rows', async() => {
+        const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+            if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 8) {
+                return makeIdentityResponse(Constants.HTTP_NOT_FOUND);
+            }
+            if (id === Constants.QVE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_STANDARD) {
+                return makeIdentityResponse(Constants.HTTP_GONE);
+            }
+            return null;
+        });
+
+        await (await c.getTarget()).refreshCache();
+
+        expect(c.enclaveIdentityDao.deleteEnclaveIdentity.called).to.equal(false);
     });
 });
 
