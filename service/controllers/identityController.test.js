@@ -112,3 +112,23 @@ describe('identityController', () => {
         });
     });
 });
+
+
+describe('explicit evaluation number in getEcdsaQeIdentity', () => {
+    it('passes tcbEvaluationDataNumber 7 without an update and returns the identity', async() => {
+        const ctx = new TestContext();
+        ctx.update = undefined;
+        ctx.identityService.getEnclaveIdentity.resolves(ctx.getExpectedIdentity());
+        const target = await ctx.getTarget();
+        const req = ctx.getRequest();
+        req.query.tcbEvaluationDataNumber = '7';
+
+        await target.getEcdsaQeIdentity(req, ctx.response, ctx.next);
+
+        expect(ctx.identityService.getEnclaveIdentity.calledWith(
+            Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+        expect(ctx.response.status.calledWith(PccsStatus.PCCS_STATUS_SUCCESS[0])).to.be.true;
+        expect(ctx.response.send.calledWith(ctx.identityPayload)).to.be.true;
+    });
+});

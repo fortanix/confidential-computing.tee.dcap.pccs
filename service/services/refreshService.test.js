@@ -993,3 +993,40 @@ describe('scheduled evaluation-number refresh', () => {
         )).to.equal(true);
     });
 });
+
+
+describe('refresh of cached evaluation-number TCB entries', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+    it('keeps the explicit number on PCS requests and cache upserts', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{ ...makeDbTcb(), update_type: Constants.UPDATE_TYPE_TCBEDN, tcbedn: 7 }]);
+        const target = await c.getTarget();
+        await target.refreshCache();
+        expect(c.pcsClient.getTcb.calledWith(Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7)).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.firstCall.args[0].tcbedn).to.equal(7);
+    });
+    for (const [why, status] of [
+        ['not found', Constants.HTTP_NOT_FOUND],
+        ['gone', Constants.HTTP_GONE],
+    ]) {
+        it(`keeps a cached evaluation-number TCB when PCS returns ${why}`, async() => {
+            const c = new TestContext();
+            c.fmspcTcbDao.getAllTcbs.resolves([{
+                ...makeDbTcb(),
+                update_type: Constants.UPDATE_TYPE_TCBEDN,
+                tcbedn:      7,
+            }]);
+            c.pcsClient.getTcb.resolves(makeTcbResponse(status));
+            const target = await c.getTarget();
+
+            await target.refreshCache();
+
+            expect(c.pcsClient.getTcb.calledWith(
+                Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+            )).to.equal(true);
+            expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+        });
+    }
+});
