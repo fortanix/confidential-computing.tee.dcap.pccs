@@ -28,6 +28,7 @@ function makeHandler(name) {
 function makeControllerStubs() {
     return {
         tcbEvalDataNumbersController: { getSgxTcbEvalDataNumbers: makeHandler('sgxEdn'), getTdxTcbEvalDataNumbers: makeHandler('tdxEdn') },
+        refreshHealthController:      { getHealth: makeHandler('refreshHealth') },
         versionController:            { getVersion: makeHandler('getVersion') },
         platformsController:          { getPlatforms: makeHandler('getPlatforms'), postPlatforms: makeHandler('postPlatforms') },
         platformCollateralController: { putPlatformCollateral: makeHandler('putPlatformCollateral') },
@@ -221,6 +222,54 @@ describe('package version route', () => {
             expect(res.text).to.equal('getVersion');
             expect(controllers.versionController.getVersion.calledOnce).to.equal(true);
         });
+    });
+});
+
+describe('refresh health route', () => {
+    let app;
+    let controllers;
+
+    before(async() => {
+        controllers = makeControllerStubs();
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
+            './controllers/index.js': controllers,
+            './middleware/auth.js':   makeAuthStub(),
+        });
+        app = serverModule.default;
+    });
+
+    beforeEach(() => {
+        sinon.resetHistory();
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
+    });
+
+    it('GET /healthz/health returns refresh health and leaves live, ready, and startup checks', async() => {
+        const health = await request(app).get('/healthz/health');
+        const v3Health = await request(app).get('/sgx/certification/v3/health');
+        const v4Health = await request(app).get('/sgx/certification/v4/health');
+        const live = await request(app).get('/healthz/live');
+        const ready = await request(app).get('/healthz/ready');
+        const startup = await request(app).get('/healthz/startup');
+
+        expect(health.status).to.equal(200);
+        expect(health.text).to.equal('refreshHealth');
+        expect(v3Health.status).to.equal(200);
+        expect(v3Health.text).to.equal('refreshHealth');
+        expect(v4Health.status).to.equal(200);
+        expect(v4Health.text).to.equal('refreshHealth');
+        expect(controllers.refreshHealthController.getHealth.callCount).to.equal(3);
+        expect(live.status).to.equal(200);
+        expect(live.text).to.equal('getLiveness');
+        expect(ready.status).to.equal(200);
+        expect(ready.text).to.equal('getReadiness');
+        expect(startup.status).to.equal(200);
+        expect(startup.text).to.equal('getStartup');
+        expect(controllers.healthController.getLiveness.calledOnce).to.equal(true);
+        expect(controllers.healthController.getReadiness.callCount).to.equal(1);
+        expect(controllers.healthController.getStartup.calledOnce).to.equal(true);
     });
 });
 
