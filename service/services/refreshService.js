@@ -45,6 +45,7 @@ import * as pcsCertificatesDao from '../dao/pcsCertificatesDao.js';
 import * as crlCacheDao from '../dao/crlCacheDao.js';
 import * as pcsClient from '../pcs_client/pcs_client.js';
 import * as appUtil from '../utils/apputil.js';
+import * as cacheTimestampDao from '../dao/cacheTimestampDao.js';
 import * as tcbEvalDataNumbersDao from '../dao/tcbEvalDataNumbersDao.js';
 import { getBodyBuffer } from '../utils/responseBody.js';
 import { sequelize } from '../dao/models/index.js';
@@ -591,6 +592,28 @@ async function executeRefresh(type, fmspc) {
     }
 }
 
+async function executeRefreshAndRecord(type, fmspc) {
+    const key = type === 'certs' ? cacheTimestampDao.REFRESH_TYPE.CERTS : cacheTimestampDao.REFRESH_TYPE.DEFAULT;
+    let result;
+    try {
+        result = await executeRefresh(type, fmspc);
+    } catch (error) {
+        try {
+            // Outside the failed collateral transaction; also serialize this write on SQLite.
+            await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), false, String(error)));
+        } catch (timestampError) {
+            logger.error(`Failed to record refresh failure: ${timestampError}`);
+        }
+        throw error;
+    }
+    try {
+        await runExclusiveIfSqlite(() => cacheTimestampDao.upsertCacheTimestamp(key, new Date(), true, null));
+    } catch (timestampError) {
+        logger.error(`Failed to record refresh success: ${timestampError}`);
+    }
+    return result;
+}
+
 export async function refreshCache(type, fmspc) {
     if (!cachingModeManager.isRefreshable()) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
@@ -606,7 +629,7 @@ export async function refreshCache(type, fmspc) {
 
     // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
     // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
-    const refreshPromise = executeRefresh(type, normalizedFmspc).finally(() => activeRefreshes.delete(lockKey));
+    const refreshPromise = executeRefreshAndRecord(type, normalizedFmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }
