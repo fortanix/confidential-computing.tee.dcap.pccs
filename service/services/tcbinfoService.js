@@ -31,14 +31,18 @@
 import * as fmspcTcbDao from '../dao/fmspcTcbDao.js';
 import * as appUtil from '../utils/apputil.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
+import { ensureKnownTcbEvaluationDataNumber } from './tcbEvalDataNumbersService.js';
 
 
-export async function getTcbInfo(type, fmspc, version, updateType) {
+export async function getTcbInfo(type, fmspc, version, updateType, tcbedn = -1) {
     // query tcbinfo from local database first
-    const tcbinfo = await fmspcTcbDao.getTcbInfo(type, fmspc, version, updateType);
+    const tcbinfo = await fmspcTcbDao.getTcbInfo(type, fmspc, version, updateType, tcbedn);
     let result = {};
     if (tcbinfo === null) {
-        result = await cachingModeManager.getTcbInfoFromPCS(type, fmspc, version, updateType);
+        if (tcbedn !== -1) {
+            await ensureKnownTcbEvaluationDataNumber(type, tcbedn);
+        }
+        result = await cachingModeManager.getTcbInfoFromPCS(type, fmspc, version, updateType, tcbedn);
     } else {
         result[appUtil.getTcbInfoIssuerChainName(version)] =
       tcbinfo.signing_cert + tcbinfo.root_cert;
