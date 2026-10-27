@@ -1,0 +1,15 @@
+# Copyright (c) Fortanix, Inc. SPDX-License-Identifier: BSD-3-Clause
+# Local-checkout equivalent of the original PCCS test stage.
+# Production builds continue to use service/container/Dockerfile unchanged.
+ARG NODE_VERSION=24.22.1
+FROM node:${NODE_VERSION}-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /opt/intel/pccs
+COPY service/package.json service/package-lock.json ./
+RUN npm ci --omit=dev
+COPY --chown=node:node service/ ./
+COPY --chown=node:node container/pccs/test.json config/default.json
+COPY --chown=node:node container/pccs/test.db pckcache.db
+RUN mkdir -p logs && chown node:node . logs
+USER node
+ENTRYPOINT ["node", "pccs_server.js"]

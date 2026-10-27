@@ -1,0 +1,24 @@
+# Adapted from source 89ae25e6: real PCCS plus the original Rust test container.
+services:
+  pccs-dev:
+    build:
+      context: ..
+      dockerfile: container/pccs/Dockerfile.test
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24.22.1}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz/ready', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+
+  pccs-dev-test:
+    build:
+      context: ./test_pccs
+      dockerfile: Dockerfile
+    depends_on:
+      pccs-dev:
+        condition: service_healthy
+    environment:
+      PCCS_URL: http://pccs-dev:8080
