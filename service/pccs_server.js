@@ -44,6 +44,7 @@ import { constants as crypto_constants } from 'crypto';
 import { validateTokenHashes } from './middleware/auth.js';
 import * as error from './middleware/error.js';
 import addRequestId from './middleware/addRequestId.js';
+import logRealIp from './middleware/logRealIp.js';
 import rejectUnexpectedBody from './middleware/rejectUnexpectedBody.js';
 import filterDuplicatedParams from './middleware/filterDuplicatedParams.js';
 import v3EolWarning from './middleware/v3EolWarning.js';
@@ -98,6 +99,7 @@ async function initializeApp() {
 function configureMiddlewareAndRoutes() {
     app.use(morgan(formatLogMessage, { stream: logger.stream }));
     app.use(addRequestId);
+    app.use(logRealIp);
     app.use(rejectUnexpectedBody);
     app.use(filterDuplicatedParams);
 
