@@ -27,6 +27,7 @@ function makeHandler(name) {
 
 function makeControllerStubs() {
     return {
+        versionController:            { getVersion: makeHandler('getVersion') },
         platformsController:          { getPlatforms: makeHandler('getPlatforms'), postPlatforms: makeHandler('postPlatforms') },
         platformCollateralController: { putPlatformCollateral: makeHandler('putPlatformCollateral') },
         pckcertController:            { getPckCert: makeHandler('getPckCert') },
@@ -186,6 +187,38 @@ describe('strict routing regression (trailing slash)', () => {
             expect(res.status).to.equal(404);
             expect(controllerSpyForRoute(route).called).to.equal(false);
             expect(authSpyForRoute(route).called).to.equal(false);
+        });
+    });
+});
+
+describe('package version route', () => {
+    let app;
+    let controllers;
+
+    before(async() => {
+        controllers = makeControllerStubs();
+        const serverModule = await esmock.strict('./pccs_server.js', makeServerDependencyMocks(), {
+            './controllers/index.js': controllers,
+            './middleware/auth.js':   makeAuthStub(),
+        });
+        app = serverModule.default;
+    });
+
+    beforeEach(() => {
+        sinon.resetHistory();
+    });
+
+    after(() => {
+        delete global.PCS_VERSION;
+    });
+
+    ['/sgx/certification/v3/version', '/sgx/certification/v4/version'].forEach((path) => {
+        it(`GET ${path} does not require credentials and calls getVersion`, async() => {
+            const res = await request(app).get(path);
+
+            expect(res.status).to.equal(200);
+            expect(res.text).to.equal('getVersion');
+            expect(controllers.versionController.getVersion.calledOnce).to.equal(true);
         });
     });
 });
