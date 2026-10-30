@@ -1,7 +1,7 @@
 {
   "name": "PCCS",
   "description": "Provisioning Certificate Caching Service",
-  "version": "1.28.0",
+  "version": "1.28.0-1",
   "type": "module",
   "dependencies": {
     "@peculiar/asn1-schema": "^2.8.0",
