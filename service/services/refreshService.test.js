@@ -1208,3 +1208,57 @@ describe('enclave-identity evaluation-number refresh', () => {
         expect(storedEvaluationNumbers(c)).to.deep.equal(stored);
     });
 });
+
+
+describe('programmatic refresh FMSPC validation', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    async function refreshTwice(value) {
+        const c = new TestContext();
+        c.platformTcbsDao.getPlatformTcbs.resolves([]);
+        const { refreshCache } = await c.getTarget();
+        const args = value === undefined ? ['certs'] : ['certs', value];
+        await Promise.all([refreshCache(...args), refreshCache(...args)]);
+        return c;
+    }
+
+    for (const { why, value, expected } of [
+        { why: 'an omitted filter', value: undefined, expected: '' },
+        { why: 'one FMSPC', value: 'abcdabcdabcd', expected: 'ABCDABCDABCD' },
+        { why: 'a comma-separated list', value: 'abcdabcdabcd,112233445566', expected: 'ABCDABCDABCD,112233445566' },
+        { why: 'duplicate FMSPCs', value: 'abcdabcdabcd,abcdabcdabcd', expected: 'ABCDABCDABCD,ABCDABCDABCD' },
+    ]) {
+        it(`stores ${why} as ${JSON.stringify(expected)} in coalescing key certs:${expected}`, async() => {
+            const c = await refreshTwice(value);
+
+            expect(c.platformTcbsDao.getPlatformTcbs.calledOnceWith(expected)).to.be.true;
+            expect(c.logger.info.calledWith(
+                `[refreshCache] Refresh for key=certs:${expected} already in progress, awaiting shared result`
+            )).to.be.true;
+        });
+    }
+
+    for (const { why, value } of [
+        { why: 'a trailing empty entry', value: '001122334455,' },
+        { why: 'whitespace around a comma', value: '001122334455, 112233445566' },
+        { why: 'the literal all', value: 'all' },
+    ]) {
+        it(`rejects ${why} before fetching platforms`, async() => {
+            const c = new TestContext();
+            const { refreshCache } = await c.getTarget();
+
+            try {
+                await refreshCache('certs', value);
+                expect.fail('expected an invalid request');
+            } catch (err) {
+                expect(err.status).to.equal(PccsStatus.PCCS_STATUS_INVALID_REQ[0]);
+                expect(err.message).to.equal(PccsStatus.PCCS_STATUS_INVALID_REQ[1]);
+            }
+
+            expect(c.platformTcbsDao.getPlatformTcbs.called).to.be.false;
+            expect(c.pcsClient.getCerts.called).to.be.false;
+        });
+    }
+});
