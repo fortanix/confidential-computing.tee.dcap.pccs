@@ -42,3 +42,7 @@ Pre-packaged installers of both the **PCCS Service** (`sgx-dcap-pccs`) and the *
 * specific version: https://download.01.org/intel-sgx/sgx-dcap/
 
 Additionally, for Ubuntu the packages are available in the online repository hosted at https://download.01.org/intel-sgx/sgx_repo/ubuntu/ ([setup instructions](https://cc-enabling.trustedservices.intel.com/intel-tdx-enabling-guide/02/infrastructure_setup/#__tabbed_1_2)).
+
+## Container runtime
+
+The service Dockerfile uses Debian 13 and Node 24.22.1.
