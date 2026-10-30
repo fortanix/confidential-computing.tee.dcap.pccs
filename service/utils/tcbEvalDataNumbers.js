@@ -12,3 +12,30 @@ export function parseTcbEvalDataNumbersResponse(response) {
     }
     return { contents: getBodyBuffer(response), [Constants.TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN]: chain };
 }
+
+export function parseKnownTcbEvaluationDataNumbers(contents) {
+    if (!contents) {
+        return null;
+    }
+    try {
+        const raw = Buffer.isBuffer(contents) ? contents.toString('utf8') : String(contents);
+        const parsed = JSON.parse(raw);
+        const entries = parsed?.tcbEvaluationDataNumbers?.tcbEvalNumbers;
+        if (!Array.isArray(entries)) {
+            return null;
+        }
+        const numbers = entries
+            .map(entry => entry?.tcbEvaluationDataNumber)
+            .filter(number => Number.isSafeInteger(number) && number >= 0);
+        return {
+            known:      new Set(numbers),
+            nextUpdate: Date.parse(parsed?.tcbEvaluationDataNumbers?.nextUpdate),
+        };
+    } catch {
+        return null;
+    }
+}
+
+export function extractKnownTcbEvaluationDataNumbers(contents) {
+    return parseKnownTcbEvaluationDataNumbers(contents)?.known ?? null;
+}
