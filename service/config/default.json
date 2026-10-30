@@ -2,7 +2,7 @@
     "USE_HTTPS" : false,
     "HTTP_PORT" : 8080,
     "HTTPS_PORT" : 8081,
-    "hosts" : "0.0.0.0",
+    "hosts" : "127.0.0.1",
     "uri": "https://api.trustedservices.intel.com/sgx/certification/v4/",
     "ApiKey": "",
     "proxy" : "",

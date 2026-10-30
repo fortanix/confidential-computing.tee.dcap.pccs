@@ -1,6 +1,7 @@
 /* Copyright(c) 2026 Intel Corporation
    SPDX-License-Identifier: BSD-3-Clause */
 
+import { readFileSync as readTextFile } from 'node:fs';
 import esmock from 'esmock';
 import sinon from 'sinon';
 import request from 'supertest';
@@ -190,13 +191,21 @@ describe('strict routing regression (trailing slash)', () => {
 });
 
 describe('HTTP and HTTPS listener configuration', () => {
+    it('ships HTTP on port 8080 bound to 127.0.0.1 in config/default.json', () => {
+        const text = readTextFile(new URL('./config/default.json', import.meta.url), 'utf8');
+
+        expect(text).to.match(/"USE_HTTPS"\s*:\s*false\b/);
+        expect(text).to.match(/"HTTP_PORT"\s*:\s*8080\b/);
+        expect(text).to.match(/"hosts"\s*:\s*"127\.0\.0\.1"/);
+    });
+
     function listenerConfig(useHttps) {
         return {
             uri:                     'https://example.com/sgx/certification/v4/',
             USE_HTTPS:               useHttps,
             HTTP_PORT:               8080,
             HTTPS_PORT:              8081,
-            hosts:                   '0.0.0.0',
+            hosts:                   '127.0.0.1',
             DB_CONFIG:               'sqlite',
             sqlite:                  { options: { storage: '/tmp/listener-test.db' } },
             CachingFillMode:         'LAZY',
@@ -236,7 +245,7 @@ describe('HTTP and HTTPS listener configuration', () => {
         expect(httpCreate.firstCall.args[0]).to.be.a('function');
         expect(httpsCreate.called).to.equal(false);
         expect(readFileSync.callCount).to.equal(0);
-        expect(httpServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8080, '0.0.0.0']);
+        expect(httpServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8080, '127.0.0.1']);
         expect(httpServer.requestTimeout).to.equal(42000);
         expect(httpServer.headersTimeout).to.equal(23000);
         expect(httpServer.keepAliveTimeout).to.equal(17000);
@@ -252,7 +261,7 @@ describe('HTTP and HTTPS listener configuration', () => {
         expect(httpsCreate.firstCall.args[0].cert).to.equal('test-pem');
         expect(httpsCreate.firstCall.args[0].ciphers).to.include('TLS_AES_256_GCM_SHA384');
         expect(httpsCreate.firstCall.args[1]).to.be.a('function');
-        expect(httpsServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8081, '0.0.0.0']);
+        expect(httpsServer.listen.firstCall.args.slice(0, 2)).to.deep.equal([8081, '127.0.0.1']);
         expect(httpsServer.requestTimeout).to.equal(42000);
         expect(httpsServer.headersTimeout).to.equal(23000);
         expect(httpsServer.keepAliveTimeout).to.equal(17000);
