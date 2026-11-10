@@ -3,7 +3,7 @@ name: PCCS tests and image
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [ftx/main]
   workflow_dispatch:
 
 permissions:
