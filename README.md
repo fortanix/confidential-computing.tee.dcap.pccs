@@ -46,3 +46,24 @@ Additionally, for Ubuntu the packages are available in the online repository hos
 ## Container runtime
 
 The service Dockerfile uses Debian 13 and Node 24.22.1.
+
+## Verification
+
+From the repository root:
+
+```bash
+cd service
+npm ci
+npm run test:all
+npm run eslint -- .
+cd ..
+./run_docker_compose_test.sh
+```
+
+`test:all` runs the native Vitest checks and the upstream Mocha suite.
+The [Compose guide](container/README.md) covers the Rust integration container
+and database snapshot. GitHub Actions runs unit, Compose, and image checks.
+
+The production image entrypoint is `./container/pccs/build.py --keep-image`.
+It requires a published branch/tag matching checkout HEAD. Detached checkouts
+must supply `--ref`; use `--help` for source, release and publishing options.
