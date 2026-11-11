@@ -41,6 +41,7 @@ import * as crlController from './crlController.js';
 import * as appraisalPolicyController from './appraisalPolicyController.js';
 import * as healthController from './healthController.js';
 import * as versionController from './versionController.js';
+import * as refreshHealthController from './refreshHealthController.js';
 
 import * as tcbEvalDataNumbersController from './tcbEvalDataNumbersController.js';
 
@@ -58,4 +59,5 @@ export {
     appraisalPolicyController,
     healthController,
     versionController,
+    refreshHealthController,
 };
