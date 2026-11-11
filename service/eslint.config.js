@@ -8,7 +8,7 @@ import pluginChaiFriendly from 'eslint-plugin-chai-friendly';
 import nodePlugin from 'eslint-plugin-n';
 
 export default defineConfig([
-    globalIgnores(['*.config.js']),
+    globalIgnores(['*.config.js', 'test/fixtures/**', 'test-reports/**']),
     pluginChaiFriendly.configs.recommendedFlat, //replaces no-unused-expressions
     eslint.configs.recommended,
     {
