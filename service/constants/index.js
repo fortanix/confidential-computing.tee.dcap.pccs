@@ -43,6 +43,7 @@ define('PLATF_REG_NOT_AVAILABLE', 1);
 define('PLATF_REG_DELETED', 9);
 
 define('HTTP_SUCCESS', 200);
+define('TCB_EVALUATION_DATA_NUMBERS_ISSUER_CHAIN', 'TCB-Evaluation-Data-Numbers-Issuer-Chain');
 
 //
 define('SGX_TCBM', 'SGX-TCBm');

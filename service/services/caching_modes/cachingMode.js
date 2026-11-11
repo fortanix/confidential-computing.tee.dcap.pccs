@@ -89,6 +89,10 @@ class CachingMode {
         throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
     }
 
+    async getTcbEvalDataNumbersFromPCS(type) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_NO_CACHE_DATA);
+    }
+
     isRefreshable() {
         return false;
     }
@@ -153,6 +157,10 @@ export class LazyCachingMode extends CachingMode {
 
     async getTcbInfoFromPCS(type, fmspc, version, update_type) {
         return await CommonCacheLogic.getTcbInfoFromPCS(type, fmspc, version, update_type);
+    }
+
+    async getTcbEvalDataNumbersFromPCS(type) {
+        return CommonCacheLogic.getTcbEvalDataNumbersFromPCS(type);
     }
 
     isRefreshable() {
