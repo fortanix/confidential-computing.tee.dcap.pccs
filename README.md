@@ -67,3 +67,7 @@ and database snapshot. GitHub Actions runs unit, Compose, and image checks.
 The production image entrypoint is `./container/pccs/build.py --keep-image`.
 It requires a published branch/tag matching checkout HEAD. Detached checkouts
 must supply `--ref`; use `--help` for source, release and publishing options.
+
+Run `npm --prefix service run test:live` to verify refresh and retirement cleanup
+against Intel PCS using a temporary PCCS process and SQLite database; see the
+[live test guide](service/test/live/README.md).
