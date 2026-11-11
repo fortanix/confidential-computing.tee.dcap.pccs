@@ -50,6 +50,7 @@ import { getBodyBuffer } from '../utils/responseBody.js';
 import { sequelize } from '../dao/models/index.js';
 import { cachingModeManager } from './caching_modes/cachingModeManager.js';
 import { selectBestPckCert } from '../pckCertSelection/pckCertSelection.js';
+import { validateFmspcStr } from './validatorService.js';
 import { parseTcbEvalDataNumbersResponse } from '../utils/tcbEvalDataNumbers.js';
 
 const MAX_ENCLAVE_IDENTITY_EDN_SPAN = 100;
@@ -595,7 +596,9 @@ export async function refreshCache(type, fmspc) {
         throw new PccsError(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE);
     }
 
-    const lockKey = type === 'certs' ? `certs:${fmspc}` : 'collateral';
+    const normalizedFmspc = type === 'certs' ? validateFmspcStr(fmspc) : fmspc;
+
+    const lockKey = type === 'certs' ? `certs:${normalizedFmspc}` : 'collateral';
     if (activeRefreshes.has(lockKey)) {
         logger.info(`[refreshCache] Refresh for key=${lockKey} already in progress, awaiting shared result`);
         return activeRefreshes.get(lockKey);
@@ -603,7 +606,7 @@ export async function refreshCache(type, fmspc) {
 
     // .finally() callbacks always run as a microtask, so the set() below is guaranteed to run first
     // even if executeRefresh() settles synchronously (e.g. PCS_VERSION <= 3 takes no await).
-    const refreshPromise = executeRefresh(type, fmspc).finally(() => activeRefreshes.delete(lockKey));
+    const refreshPromise = executeRefresh(type, normalizedFmspc).finally(() => activeRefreshes.delete(lockKey));
     activeRefreshes.set(lockKey, refreshPromise);
     return refreshPromise;
 }
