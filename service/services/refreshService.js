@@ -131,7 +131,7 @@ async function fetchEnclaveIdentities() {
             }
         }
         for (const tcbedn of evaluationNumbers) {
-            // Keep requests ordered, including cached numbers outside the current range.
+            // Fetch sequentially to preserve request order and avoid bursting Intel PCS rate limits.
             // eslint-disable-next-line no-await-in-loop
             const response = await pcsClient.getEnclaveIdentity(enclaveId, version, Constants.UPDATE_TYPE_TCBEDN, tcbedn);
             retrievedEnclaveIdentities.push({
