@@ -17,7 +17,7 @@ export function deleteCacheTimestamp(cache_key) {
     return CacheTimestamp.destroy({ where: { cache_key } });
 }
 
-export async function getRefreshTimestampsAsObject(includeMissing = true) {
+export async function getRefreshTimestampsAsObject(includeMissing = true, omitErrorInfo = false) {
     const keys = [REFRESH_TYPE.DEFAULT, REFRESH_TYPE.CERTS];
     const result = Object.create(null);
     if (includeMissing) {
@@ -28,7 +28,7 @@ export async function getRefreshTimestampsAsObject(includeMissing = true) {
     const rows = await CacheTimestamp.findAll({ where: { cache_key: { [Op.in]: keys } } });
     for (const row of rows) {
         result[row.cache_key] ??= { success: null, failure: null };
-        result[row.cache_key][row.successful ? 'success' : 'failure'] = row.successful ?
+        result[row.cache_key][row.successful ? 'success' : 'failure'] = (row.successful || omitErrorInfo) ?
             { last_refresh_at: row.last_refresh_at } :
             { last_refresh_at: row.last_refresh_at, error_msg: row.error_msg };
     }
