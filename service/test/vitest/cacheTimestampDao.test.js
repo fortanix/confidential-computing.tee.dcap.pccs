@@ -143,6 +143,16 @@ describe('cacheTimestampDao - Unit Tests (composite PK: cache_key + successful)'
         expect(map.certs.failure.error_msg).toBe(err_msg);
     });
 
+    test('getRefreshTimestampsAsObject omits error_msg when omitErrorInfo=true', async() => {
+        const t1 = new Date('2022-01-01T00:00:00Z');
+        await CacheTimestamp.create({ cache_key: 'default', successful: false, last_refresh_at: t1, error_msg: 'secret detail' });
+
+        const map = await cacheTimestampDao.getRefreshTimestampsAsObject(true, true);
+
+        expect(map.default.failure).toStrictEqual({ last_refresh_at: t1 });
+        expect(map.default.failure.error_msg).toBeUndefined();
+    });
+
     test('getRefreshTimestampsAsObject omits missing keys when includeMissing=false', async() => {
         await CacheTimestamp.create({ cache_key: 'default', successful: true });
 

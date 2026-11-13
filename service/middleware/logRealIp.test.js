@@ -1,5 +1,5 @@
-/* Copyright(c) 2026 Intel Corporation
-   SPDX-License-Identifier: BSD-3-Clause */
+/* Copyright (c) Fortanix, Inc.
+ * SPDX-License-Identifier: BSD-3-Clause */
 
 import esmock from 'esmock';
 import { expect } from 'chai';

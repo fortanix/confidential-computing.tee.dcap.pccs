@@ -190,4 +190,16 @@ describe('auth', () => {
 
 
     });
+
+    describe('isAdminRequest', () => {
+        it('returns true for a valid admin token and false otherwise', async() => {
+            const c = new TestContext();
+            const target = await c.getTarget();
+
+            expect(target.isAdminRequest({ headers: { 'admin-token': 'admin' } })).to.equal(true);
+            expect(target.isAdminRequest({ headers: { 'admin-token': 'wrong' } })).to.equal(false);
+            expect(target.isAdminRequest({ headers: {} })).to.equal(false);
+            expect(target.isAdminRequest({})).to.equal(false);
+        });
+    });
 });

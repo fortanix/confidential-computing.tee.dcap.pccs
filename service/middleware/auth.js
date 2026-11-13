@@ -75,25 +75,26 @@ export function validateUser(req, res, next) {
     }
 }
 
-export function validateAdmin(req, res, next) {
+export function isAdminRequest(req) {
     const CONFIG_TOKEN_KEY = 'AdminTokenHash';
     if (!Config.has(CONFIG_TOKEN_KEY)) {
-        throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
+        return false;
     }
     const HTTP_HEADER_ADMIN_TOKEN = 'admin-token';
-    const token = req.headers[HTTP_HEADER_ADMIN_TOKEN];
-    if (token) {
-        const hash = Crypto.createHash('sha512');
-        hash.update(token);
-        const adminTokenBuffer = hash.digest();
-        const expectedTokenBuffer = Buffer.from(Config.get(CONFIG_TOKEN_KEY), 'hex');
+    const token = req?.headers?.[HTTP_HEADER_ADMIN_TOKEN];
+    if (!token || typeof token !== 'string') {
+        return false;
+    }
+    const hash = Crypto.createHash('sha512');
+    hash.update(token);
+    const adminTokenBuffer = hash.digest();
+    const expectedTokenBuffer = Buffer.from(Config.get(CONFIG_TOKEN_KEY), 'hex');
+    return adminTokenBuffer.length === expectedTokenBuffer.length && Crypto.timingSafeEqual(adminTokenBuffer, expectedTokenBuffer);
+}
 
-        if (adminTokenBuffer.length !== expectedTokenBuffer.length || !Crypto.timingSafeEqual(adminTokenBuffer, expectedTokenBuffer)) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
-        } else {
-            next();
-        }
-    } else {
+export function validateAdmin(req, res, next) {
+    if (!isAdminRequest(req)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_UNAUTHORIZED);
     }
+    next();
 }
