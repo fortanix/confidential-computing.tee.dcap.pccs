@@ -1028,5 +1028,23 @@ describe('refresh of cached evaluation-number TCB entries', () => {
             )).to.equal(true);
             expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
         });
+        it(`throws SERVICE_UNAVAILABLE for legacy STANDARD TCB when PCS returns ${why}`, async() => {
+            const c = new TestContext();
+            c.fmspcTcbDao.getAllTcbs.resolves([{
+                ...makeDbTcb(),
+                update_type: Constants.UPDATE_TYPE_STANDARD,
+                tcbedn:      -1,
+            }]);
+            c.pcsClient.getTcb.resolves(makeTcbResponse(status));
+            const target = await c.getTarget();
+
+            let caught;
+            try {
+                await target.refreshCache();
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught?.status).to.equal(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]);
+        });
     }
 });

@@ -8,12 +8,12 @@ import PccsStatus from '../constants/pccs_status_code.js';
 import { parseKnownTcbEvaluationDataNumbers } from '../utils/tcbEvalDataNumbers.js';
 
 const activeListRefreshes = new Map();
-const lastRefreshAttemptAt = new Map();
+const lastRefreshState = new Map();
 const LIST_REFRESH_COOLDOWN_MS = 60000;
 
 export function resetListRefreshStateForTests() {
     activeListRefreshes.clear();
-    lastRefreshAttemptAt.clear();
+    lastRefreshState.clear();
 }
 
 export async function getTcbEvalDataNumbers(type) {
@@ -39,13 +39,22 @@ export async function ensureKnownTcbEvaluationDataNumber(type, tcbedn) {
 
     let refresh = activeListRefreshes.get(type);
     if (!refresh) {
-        const lastAttempt = lastRefreshAttemptAt.get(type);
-        if (lastAttempt !== undefined && Date.now() - lastAttempt < LIST_REFRESH_COOLDOWN_MS) {
-            throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
+        const lastAttempt = lastRefreshState.get(type);
+        if (lastAttempt !== undefined && Date.now() - lastAttempt.attemptedAt < LIST_REFRESH_COOLDOWN_MS) {
+            throw new PccsError(lastAttempt.failed ? PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE : PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
         refresh = Promise.resolve().then(() => cachingModeManager.getTcbEvalDataNumbersFromPCS(type))
+            .then(
+                (result) => {
+                    lastRefreshState.set(type, { attemptedAt: Date.now(), failed: false });
+                    return result;
+                },
+                (err) => {
+                    lastRefreshState.set(type, { attemptedAt: Date.now(), failed: true });
+                    throw err;
+                }
+            )
             .finally(() => {
-                lastRefreshAttemptAt.set(type, Date.now());
                 activeListRefreshes.delete(type);
             });
         activeListRefreshes.set(type, refresh);
