@@ -431,7 +431,9 @@ async function persistAllTcbs(downloadedTcbInfos) {
             return;
         }
 
-        if (statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) {
+        if ((statusCode === Constants.HTTP_NOT_FOUND || statusCode === Constants.HTTP_GONE) &&
+            update_type === Constants.UPDATE_TYPE_TCBEDN &&
+            tcbedn !== -1) {
             logger.info(`TCB collateral retired for fmspc:${fmspc}, tcbedn:${tcbedn}, status:${statusCode}`);
             return;
         }

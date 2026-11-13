@@ -187,12 +187,12 @@ describe('evaluation-number list freshness and refresh coalescing', () => {
         });
     }
 
-    async function unknownRequests(service, number = 999) {
+    async function unknownRequests(service, number = 999, expectedStatus = PccsStatus.PCCS_STATUS_INVALID_REQ[0]) {
         const results = await Promise.allSettled(Array.from({ length: 10 }, () =>
             service.ensureKnownTcbEvaluationDataNumber(Constants.PROD_TYPE_SGX, number)));
         for (const result of results) {
             expect(result.status).to.equal('rejected');
-            expect(result.reason.status).to.equal(PccsStatus.PCCS_STATUS_INVALID_REQ[0]);
+            expect(result.reason.status).to.equal(expectedStatus);
         }
     }
 
@@ -251,7 +251,7 @@ describe('evaluation-number list freshness and refresh coalescing', () => {
         expect(results.every(result => result.status === 'rejected' && result.reason === error)).to.equal(true);
         expect(fetch.callCount).to.equal(1);
 
-        await unknownRequests(service);
+        await unknownRequests(service, 23, PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]);
         expect(fetch.callCount).to.equal(1);
         fetch.resolves({ contents: makeEdnPayload([23]) });
         await service.ensureKnownTcbEvaluationDataNumber(Constants.PROD_TYPE_TDX, 23);
