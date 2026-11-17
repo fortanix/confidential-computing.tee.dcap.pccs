@@ -92,14 +92,17 @@ class TestContext {
             get: sinon.stub().callsFake(key => (key === 'DB_CONFIG' ? 'sqlite' : undefined))
         };
 
+        this.timestampDao = { REFRESH_TYPE: { CERTS: 'certs', DEFAULT: 'default' }, upsertCacheTimestamp: sinon.stub().resolves() };
+        this.ednDao = { upsertTcbEvalDataNumbers: sinon.stub().resolves() };
         this.pcsClient = {
-            getCerts:             sinon.stub().resolves(makeCertResponse()),
-            getCertsWithManifest: sinon.stub().resolves(makeCertResponse()),
-            getPckCrl:            sinon.stub().resolves(makeCrlResponse()),
-            getTcb:               sinon.stub().resolves(makeTcbResponse()),
-            getEnclaveIdentity:   sinon.stub().resolves(makeIdentityResponse()),
-            getFileFromUrl:       sinon.stub().resolves(CRL_DATA),
-            getHeaderValue:       sinon.stub().callsFake((headers, key) => headers[key])
+            getTcbEvalDataNumbers: sinon.stub().resolves({ statusCode: 200, body: 'edn', headers: { 'tcb-evaluation-data-numbers-issuer-chain': 'edn-issuer-chain' } }),
+            getCerts:              sinon.stub().resolves(makeCertResponse()),
+            getCertsWithManifest:  sinon.stub().resolves(makeCertResponse()),
+            getPckCrl:             sinon.stub().resolves(makeCrlResponse()),
+            getTcb:                sinon.stub().resolves(makeTcbResponse()),
+            getEnclaveIdentity:    sinon.stub().resolves(makeIdentityResponse()),
+            getFileFromUrl:        sinon.stub().resolves(CRL_DATA),
+            getHeaderValue:        sinon.stub().callsFake((headers, key) => headers[key])
         };
 
         this.pckcertDao = {
@@ -107,7 +110,9 @@ class TestContext {
             upsertPckCert: sinon.stub().resolves()
         };
         this.enclaveIdentityDao = {
-            upsertEnclaveIdentity: sinon.stub().resolves()
+            getAllEnclaveIdentities: sinon.stub().resolves([]),
+            upsertEnclaveIdentity:   sinon.stub().resolves(),
+            deleteEnclaveIdentity:   sinon.stub().resolves()
         };
         this.pckcrlDao = {
             getAllPckCrls: sinon.stub().resolves([{ ca: Constants.CA_PROCESSOR }]),
@@ -123,6 +128,7 @@ class TestContext {
         this.fmspcTcbDao = {
             getAllTcbs:        sinon.stub().resolves([makeDbTcb()]),
             upsertFmspcTcb:    sinon.stub().resolves(),
+            deleteFmspcTcb:    sinon.stub().resolves(),
             deleteInvalidTcbs: sinon.stub().resolves()
         };
         this.pckCertchainDao = {
@@ -172,6 +178,8 @@ class TestContext {
 
     async getTarget() {
         return esmock.strict('./refreshService.js', {
+            '../dao/tcbEvalDataNumbersDao.js':         this.ednDao,
+            '../dao/cacheTimestampDao.js':             this.timestampDao,
             '../utils/PccsError.js':                   { 'default': MockPccsError },
             '../constants/pccs_status_code.js':        { 'default': PccsStatus },
             '../constants/index.js':                   { 'default': Constants },
@@ -464,7 +472,8 @@ describe('refreshService', () => {
             const queueWaitLogs = c.logger.info.getCalls()
                 .map(call => call.args[0])
                 .filter(message => message.includes('SQLite write queue wait durationMs='));
-            expect(queueWaitLogs.length).to.equal(2);
+            // Two cert FMSPC refreshes. Each queues one certificate transaction and one timestamp write.
+            expect(queueWaitLogs.length).to.equal(4);
         });
 
         it('still serializes the next transaction after one fails', async() => {
@@ -779,7 +788,9 @@ describe('refreshService', () => {
             expect(arg.fmspc).to.equal(FMSPC);
             expect(arg.version).to.equal(4);
             expect(arg.update_type).to.equal(Constants.UPDATE_TYPE_STANDARD);
-            expect(c.pcsCertificatesDao.upsertTcbInfoIssuerChain.calledOnce).to.be.true;
+            const tcbChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+                .filter(call => call.args[0] === ISSUER_CHAIN);
+            expect(tcbChains).to.have.length(1);
         });
 
         it('skips upsertEnclaveIdentity for failed identity fetches', async() => {
@@ -947,5 +958,513 @@ describe('refreshService', () => {
 
             expect(c.logger.error.calledWithMatch('Scheduled cache refresh failed')).to.be.true;
         });
+    });
+});
+
+
+describe('scheduled evaluation-number refresh', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    it('writes SGX and TDX lists fetched before the collateral transaction', async() => {
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await target.scheduledRefresh();
+
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX)).to.equal(true);
+        expect(c.pcsClient.getTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX)).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX, Buffer.from('edn'))).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX, Buffer.from('edn'))).to.equal(true);
+        const ednChains = c.pcsCertificatesDao.upsertTcbInfoIssuerChain.getCalls()
+            .filter(call => call.args[0] === 'edn-issuer-chain');
+        expect(ednChains).to.have.length(2);
+        expect(c.pcsClient.getTcbEvalDataNumbers.lastCall.calledBefore(c.sequelize.transaction.firstCall)).to.equal(true);
+    });
+
+    it('skips only the failed evaluation-number list and completes the rest of the refresh when a list returns 503', async() => {
+        const c = new TestContext();
+        c.pcsClient.getTcbEvalDataNumbers.withArgs(Constants.PROD_TYPE_SGX).resolves({ statusCode: 503, headers: {} });
+        const target = await c.getTarget();
+
+        await target.refreshCache('collateral');
+
+        expect(c.sequelize.transaction.calledOnce).to.equal(true);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_SGX)).to.equal(false);
+        expect(c.ednDao.upsertTcbEvalDataNumbers.calledWith(Constants.PROD_TYPE_TDX, Buffer.from('edn'))).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.calledOnce).to.equal(true);
+        expect(c.logger.warn.calledWithMatch(
+            `Failed to get TCB evaluation data numbers for type ${Constants.PROD_TYPE_SGX}`
+        )).to.equal(true);
+    });
+});
+
+
+describe('refresh of cached evaluation-number TCB entries', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+    it('keeps the explicit number on PCS requests and cache upserts', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{ ...makeDbTcb(), update_type: Constants.UPDATE_TYPE_TCBEDN, tcbedn: 7 }]);
+        const target = await c.getTarget();
+        await target.refreshCache();
+        expect(c.pcsClient.getTcb.calledWith(Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7)).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.firstCall.args[0].tcbedn).to.equal(7);
+    });
+
+    it('deletes a cached evaluation-number TCB when PCS returns 410 Gone', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{
+            ...makeDbTcb(),
+            update_type: Constants.UPDATE_TYPE_TCBEDN,
+            tcbedn:      7,
+        }]);
+        c.pcsClient.getTcb.resolves(makeTcbResponse(Constants.HTTP_GONE));
+        const target = await c.getTarget();
+
+        await target.refreshCache();
+
+        expect(c.pcsClient.getTcb.calledWith(
+            Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+        expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+        expect(c.fmspcTcbDao.deleteFmspcTcb.calledOnceWithExactly(
+            Constants.PROD_TYPE_SGX, FMSPC, 4, Constants.UPDATE_TYPE_TCBEDN, 7
+        )).to.equal(true);
+    });
+
+    it('does not delete a cached evaluation-number TCB when PCS returns 404 Not Found', async() => {
+        const c = new TestContext();
+        c.fmspcTcbDao.getAllTcbs.resolves([{
+            ...makeDbTcb(),
+            update_type: Constants.UPDATE_TYPE_TCBEDN,
+            tcbedn:      7,
+        }]);
+        c.pcsClient.getTcb.resolves(makeTcbResponse(Constants.HTTP_NOT_FOUND));
+        const target = await c.getTarget();
+
+        await assert.rejects(
+            () => target.refreshCache(),
+            err => err.status === PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]
+        );
+        expect(c.fmspcTcbDao.deleteFmspcTcb.called).to.equal(false);
+    });
+
+    for (const [why, status] of [
+        ['not found', Constants.HTTP_NOT_FOUND],
+        ['gone', Constants.HTTP_GONE],
+    ]) {
+        it(`preserves a legacy standard (-1) TCB row and fails refresh when PCS returns ${why}`, async() => {
+            const c = new TestContext();
+            c.fmspcTcbDao.getAllTcbs.resolves([{
+                ...makeDbTcb(),
+                update_type: Constants.UPDATE_TYPE_STANDARD,
+                tcbedn:      -1,
+            }]);
+            c.pcsClient.getTcb.resolves(makeTcbResponse(status));
+            const target = await c.getTarget();
+
+            await assert.rejects(
+                () => target.refreshCache(),
+                err => err.status === PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]
+            );
+            expect(c.fmspcTcbDao.upsertFmspcTcb.called).to.equal(false);
+            expect(c.fmspcTcbDao.deleteFmspcTcb.called).to.equal(false);
+        });
+        it(`throws SERVICE_UNAVAILABLE for legacy STANDARD TCB when PCS returns ${why}`, async() => {
+            const c = new TestContext();
+            c.fmspcTcbDao.getAllTcbs.resolves([{
+                ...makeDbTcb(),
+                update_type: Constants.UPDATE_TYPE_STANDARD,
+                tcbedn:      -1,
+            }]);
+            c.pcsClient.getTcb.resolves(makeTcbResponse(status));
+            const target = await c.getTarget();
+
+            let caught;
+            try {
+                await target.refreshCache();
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught?.status).to.equal(PccsStatus.PCCS_STATUS_SERVICE_UNAVAILABLE[0]);
+        });
+    }
+});
+
+
+describe('enclave-identity evaluation-number refresh', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    const ENCLAVE_IDS = [
+        Constants.QE_IDENTITY_ID,
+        Constants.QVE_IDENTITY_ID,
+        Constants.TDQE_IDENTITY_ID,
+    ];
+    const ENDPOINT_REQUESTS = ENCLAVE_IDS.flatMap(id => [
+        [id, Constants.UPDATE_TYPE_STANDARD],
+        [id, Constants.UPDATE_TYPE_EARLY],
+    ]);
+
+    function rangesForAll(standard, early) {
+        return {
+            [Constants.QE_IDENTITY_ID]:   { standard, early },
+            [Constants.QVE_IDENTITY_ID]:  { standard, early },
+            [Constants.TDQE_IDENTITY_ID]: { standard, early },
+        };
+    }
+
+    function withRanges(rangesById, respond) {
+        const c = new TestContext();
+        c.pcsClient.getEnclaveIdentity.callsFake(async(id, version, updateType, tcbedn) => {
+            if (respond) {
+                const overridden = respond(id, updateType, tcbedn);
+                if (overridden) {
+                    return overridden;
+                }
+            }
+            const range = rangesById[id];
+            let number = tcbedn;
+            if (updateType === Constants.UPDATE_TYPE_STANDARD) {
+                number = range.standard;
+            } else if (updateType === Constants.UPDATE_TYPE_EARLY) {
+                number = range.early;
+            }
+            return { ...makeIdentityResponse(), body: JSON.stringify({ enclaveIdentity: { tcbEvaluationDataNumber: number } }) };
+        });
+        return c;
+    }
+
+    function evaluationNumberPairs(calls, numberIndex, updateIndex) {
+        return calls
+            .filter(call => call.args[updateIndex] === Constants.UPDATE_TYPE_TCBEDN)
+            .map(call => [call.args[0], call.args[numberIndex]]);
+    }
+
+    function requestedEvaluationNumbers(c) {
+        return evaluationNumberPairs(c.pcsClient.getEnclaveIdentity.getCalls(), 3, 2);
+    }
+
+    function storedEvaluationNumbers(c) {
+        return evaluationNumberPairs(c.enclaveIdentityDao.upsertEnclaveIdentity.getCalls(), 4, 3);
+    }
+
+    function endpointRequests(c) {
+        return c.pcsClient.getEnclaveIdentity.getCalls()
+            .filter(call => call.args[2] !== Constants.UPDATE_TYPE_TCBEDN)
+            .map(call => [call.args[0], call.args[2]]);
+    }
+
+    it('stores each enclave\'s own numbers, skipping an inverted range', async() => {
+        const c = withRanges({
+            [Constants.QE_IDENTITY_ID]:   { standard: 9, early: 7 },
+            [Constants.QVE_IDENTITY_ID]:  { standard: 7, early: 7 },
+            [Constants.TDQE_IDENTITY_ID]: { standard: 2, early: 4 },
+        });
+        const target = await c.getTarget();
+
+        await target.refreshCache();
+
+        const expected = [
+            [Constants.QVE_IDENTITY_ID, 7],
+            [Constants.TDQE_IDENTITY_ID, 2],
+            [Constants.TDQE_IDENTITY_ID, 3],
+            [Constants.TDQE_IDENTITY_ID, 4],
+        ];
+        expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(c.pcsClient.getEnclaveIdentity.lastCall.calledBefore(c.sequelize.transaction.firstCall)).to.equal(true);
+        expect(c.logger.warn.getCalls().map(call => call.args[0]).filter(
+            message => String(message).startsWith('Invalid identity evaluation-number range')
+        )).to.deep.equal(['Invalid identity evaluation-number range: 9..7']);
+    });
+
+    it('refreshes the deduplicated union of cached explicit numbers and the current range', async() => {
+        const c = withRanges(rangesForAll(7, 9));
+        const row = { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN };
+        c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+            ...[5, 5, 7, 9, -1, 1.5, '6', null, Number.MAX_SAFE_INTEGER + 1].map(tcbedn => ({ ...row, tcbedn })),
+            { ...row, tcbedn: 6, version: 3 },
+            { ...row, tcbedn: 6, id: 999 },
+            { ...row, tcbedn: 6, update_type: Constants.UPDATE_TYPE_STANDARD },
+        ]);
+
+        await (await c.getTarget()).refreshCache();
+
+        const expected = [
+            [Constants.QE_IDENTITY_ID, 5],
+            [Constants.QE_IDENTITY_ID, 7],
+            [Constants.QE_IDENTITY_ID, 9],
+            [Constants.QE_IDENTITY_ID, 8],
+            ...ENCLAVE_IDS.slice(1).flatMap(id => [7, 8, 9].map(number => [id, number])),
+        ];
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(expected);
+        expect(c.enclaveIdentityDao.getAllEnclaveIdentities.calledOnce).to.equal(true);
+        expect(c.enclaveIdentityDao.getAllEnclaveIdentities.firstCall.calledBefore(c.pcsClient.getEnclaveIdentity.firstCall)).to.equal(true);
+    });
+
+    for (const [standard, early] of [[9, 7], [1, 10000], [null, 9]]) {
+        it(`still refreshes cached explicit numbers when the current range is ${standard}..${early}`, async() => {
+            const c = withRanges(rangesForAll(standard, early));
+            c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+                { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN, tcbedn: 5 },
+            ]);
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([[Constants.QE_IDENTITY_ID, 5]]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal([[Constants.QE_IDENTITY_ID, 5]]);
+        });
+    }
+
+    it('skips an excessively large evaluation-number range and logs a warning', async() => {
+        const c = withRanges(rangesForAll(1, 10000));
+
+        await (await c.getTarget()).refreshCache();
+
+        expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal([]);
+        expect(storedEvaluationNumbers(c)).to.deep.equal([]);
+        expect(c.logger.warn.calledWith('Invalid identity evaluation-number range: 1..10000')).to.equal(true);
+    });
+
+    for (const [why, standard, early] of [
+        ['missing', null, 9],
+        ['not an integer', 1.5, 9],
+    ]) {
+        it(`does not request evaluation numbers when the standard endpoint number is ${why}`, async() => {
+            const c = withRanges(rangesForAll(standard, early));
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(endpointRequests(c)).to.deep.equal(ENDPOINT_REQUESTS);
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal([]);
+            expect(c.logger.warn.calledWithMatch('Invalid identity evaluation-number range')).to.equal(false);
+        });
+    }
+
+    it('deletes the retired identity and keeps the rest of a 7..9 range when PCS reports QE evaluation number 8 gone', async() => {
+        const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+            if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 8) {
+                return makeIdentityResponse(Constants.HTTP_GONE);
+            }
+            return null;
+        });
+
+        await (await c.getTarget()).refreshCache();
+
+        const requested = ENCLAVE_IDS.flatMap(id => [
+            [id, 7],
+            [id, 8],
+            [id, 9],
+        ]);
+        const stored = requested.filter(pair => pair[0] !== Constants.QE_IDENTITY_ID || pair[1] !== 8);
+        expect(requestedEvaluationNumbers(c)).to.deep.equal(requested);
+        expect(storedEvaluationNumbers(c)).to.deep.equal(stored);
+        expect(c.enclaveIdentityDao.deleteEnclaveIdentity.calledOnceWithExactly(
+            Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_TCBEDN, 8
+        )).to.equal(true);
+    });
+
+    for (const status of [Constants.HTTP_GONE, Constants.HTTP_NOT_FOUND]) {
+        it(`checks cached EDNs below STANDARD and deletes only after their own PCS 410 (received ${status})`, async() => {
+            const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+                if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 5) {
+                    return makeIdentityResponse(status);
+                }
+                return null;
+            });
+            const row = { id: Constants.QE_IDENTITY_ID, version: 4, update_type: Constants.UPDATE_TYPE_TCBEDN };
+            c.enclaveIdentityDao.getAllEnclaveIdentities.resolves([
+                ...[5, 5, 7, -1].map(tcbedn => ({ ...row, tcbedn })),
+                { ...row, update_type: Constants.UPDATE_TYPE_STANDARD, tcbedn: -1 },
+            ]);
+
+            await (await c.getTarget()).refreshCache();
+
+            expect(requestedEvaluationNumbers(c)).to.deep.equal([
+                [Constants.QE_IDENTITY_ID, 5],
+                ...ENCLAVE_IDS.flatMap(id => [7, 8, 9].map(number => [id, number])),
+            ]);
+            expect(storedEvaluationNumbers(c)).to.deep.equal(
+                ENCLAVE_IDS.flatMap(id => [7, 8, 9].map(number => [id, number]))
+            );
+            if (status === Constants.HTTP_GONE) {
+                expect(c.enclaveIdentityDao.deleteEnclaveIdentity.calledOnceWithExactly(
+                    Constants.QE_IDENTITY_ID, 4, Constants.UPDATE_TYPE_TCBEDN, 5
+                )).to.equal(true);
+            } else {
+                expect(c.enclaveIdentityDao.deleteEnclaveIdentity.called).to.equal(false);
+            }
+        });
+    }
+
+    it('does not delete cached enclave identities on PCS 404 or for legacy (-1) rows', async() => {
+        const c = withRanges(rangesForAll(7, 9), (id, updateType, tcbedn) => {
+            if (id === Constants.QE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_TCBEDN && tcbedn === 8) {
+                return makeIdentityResponse(Constants.HTTP_NOT_FOUND);
+            }
+            if (id === Constants.QVE_IDENTITY_ID && updateType === Constants.UPDATE_TYPE_STANDARD) {
+                return makeIdentityResponse(Constants.HTTP_GONE);
+            }
+            return null;
+        });
+
+        await (await c.getTarget()).refreshCache();
+
+        expect(c.enclaveIdentityDao.deleteEnclaveIdentity.called).to.equal(false);
+    });
+});
+
+
+describe('programmatic refresh FMSPC validation', () => {
+    afterEach(() => {
+        delete global.PCS_VERSION;
+    });
+
+    async function refreshTwice(value) {
+        const c = new TestContext();
+        c.platformTcbsDao.getPlatformTcbs.resolves([]);
+        const { refreshCache } = await c.getTarget();
+        const args = value === undefined ? ['certs'] : ['certs', value];
+        await Promise.all([refreshCache(...args), refreshCache(...args)]);
+        return c;
+    }
+
+    for (const { why, value, expected } of [
+        { why: 'an omitted filter', value: undefined, expected: '' },
+        { why: 'one FMSPC', value: 'abcdabcdabcd', expected: 'ABCDABCDABCD' },
+        { why: 'a comma-separated list', value: 'abcdabcdabcd,112233445566', expected: 'ABCDABCDABCD,112233445566' },
+        { why: 'duplicate FMSPCs', value: 'abcdabcdabcd,abcdabcdabcd', expected: 'ABCDABCDABCD,ABCDABCDABCD' },
+    ]) {
+        it(`stores ${why} as ${JSON.stringify(expected)} in coalescing key certs:${expected}`, async() => {
+            const c = await refreshTwice(value);
+
+            expect(c.platformTcbsDao.getPlatformTcbs.calledOnceWith(expected)).to.be.true;
+            expect(c.logger.info.calledWith(
+                `[refreshCache] Refresh for key=certs:${expected} already in progress, awaiting shared result`
+            )).to.be.true;
+        });
+    }
+
+    for (const { why, value } of [
+        { why: 'a trailing empty entry', value: '001122334455,' },
+        { why: 'whitespace around a comma', value: '001122334455, 112233445566' },
+        { why: 'the literal all', value: 'all' },
+    ]) {
+        it(`rejects ${why} before fetching platforms`, async() => {
+            const c = new TestContext();
+            const { refreshCache } = await c.getTarget();
+
+            try {
+                await refreshCache('certs', value);
+                expect.fail('expected an invalid request');
+            } catch (err) {
+                expect(err.status).to.equal(PccsStatus.PCCS_STATUS_INVALID_REQ[0]);
+                expect(err.message).to.equal(PccsStatus.PCCS_STATUS_INVALID_REQ[1]);
+            }
+
+            expect(c.platformTcbsDao.getPlatformTcbs.called).to.be.false;
+            expect(c.pcsClient.getCerts.called).to.be.false;
+        });
+    }
+});
+
+
+describe('refresh success and failure timestamps', () => {
+    afterEach(() => {
+        sinon.restore(); delete global.PCS_VERSION;
+    });
+
+    it('records success once for coalesced refreshes after the collateral transaction', async() => {
+        const clock = sinon.useFakeTimers({ now: new Date('2026-01-02T03:04:05Z'), toFake: ['Date'] });
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await Promise.all([target.refreshCache(), target.refreshCache()]);
+
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.firstCall.args).to.deep.equal([
+            'default', new Date(clock.now), true, null,
+        ]);
+        expect(c.timestampDao.upsertCacheTimestamp.firstCall.calledAfter(c.sequelize.transaction.lastCall)).to.equal(true);
+    });
+
+    it('preserves a successful collateral refresh when recording success fails', async() => {
+        const c = new TestContext();
+        const error = new Error('timestamps unavailable');
+        c.timestampDao.upsertCacheTimestamp.rejects(error);
+        const target = await c.getTarget();
+
+        await target.refreshCache();
+
+        expect(c.enclaveIdentityDao.upsertEnclaveIdentity.called).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'default', sinon.match.date, true, null
+        )).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.firstCall.calledAfter(c.sequelize.transaction.lastCall)).to.equal(true);
+        expect(c.logger.error.calledWith(`Failed to record refresh success: ${error}`)).to.equal(true);
+    });
+
+    it('records a failure outside the rejected transaction and retains the original error', async() => {
+        const c = new TestContext();
+        const error = new Error('write failed');
+        c.sequelize.transaction.rejects(error);
+        const target = await c.getTarget();
+
+        let caught;
+        try {
+            await target.refreshCache();
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).to.equal(error);
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'default', sinon.match.date, false, String(error)
+        )).to.equal(true);
+    });
+
+    it('preserves the PCS error when recording the failure also fails', async() => {
+        const c = new TestContext();
+        const error = new Error('PCS down');
+        c.pcsClient.getTcb.rejects(error);
+        c.timestampDao.upsertCacheTimestamp.rejects(new Error('DB down'));
+        const target = await c.getTarget();
+
+        let caught;
+        try {
+            await target.refreshCache();
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).to.equal(error);
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'default', sinon.match.date, false, String(error)
+        )).to.equal(true);
+        expect(c.logger.error.calledWithMatch('Failed to record refresh failure')).to.equal(true);
+    });
+
+    it('records certificate refresh under the certs key', async() => {
+        const c = new TestContext();
+        const target = await c.getTarget();
+
+        await target.refreshCache('certs', FMSPC);
+
+        expect(c.timestampDao.upsertCacheTimestamp.calledOnce).to.equal(true);
+        expect(c.timestampDao.upsertCacheTimestamp.calledWith(
+            'certs', sinon.match.date, true, null
+        )).to.equal(true);
     });
 });

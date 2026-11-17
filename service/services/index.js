@@ -42,7 +42,10 @@ import * as appraisalPolicyService from './appraisalPolicyService.js';
 import * as validatorService from './validatorService.js';
 import * as healthService from './healthService.js';
 
+import * as tcbEvalDataNumbersService from './tcbEvalDataNumbersService.js';
+
 export {
+    tcbEvalDataNumbersService,
     platformsRegService,
     platformCollateralService,
     pckcertService,

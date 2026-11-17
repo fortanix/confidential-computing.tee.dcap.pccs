@@ -40,10 +40,10 @@ async function getTcbInfo(req, res, next, type) {
         // validate request parameters
         const version = appUtil.getApiVersionFromUrl(req.originalUrl);
         const fmspc = validatorService.validateAndNormalizeFmspc(req.query.fmspc);
-        const update_type = validatorService.validateAndNormalizeUpdateType(req.query.update);
+        const { updateType: update_type, tcbedn } = validatorService.validateTcbCollateralQueryParams(req.query);
 
         // call service
-        const tcbinfoJson = await tcbinfoService.getTcbInfo(type, fmspc, version, update_type);
+        const tcbinfoJson = await tcbinfoService.getTcbInfo(type, fmspc, version, update_type, tcbedn);
         const issuerChainName = appUtil.getTcbInfoIssuerChainName(version);
 
         // send response

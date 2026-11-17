@@ -36,14 +36,15 @@ import * as appUtil from '../utils/apputil.js';
 
 async function getEnclaveIdentity(req, res, next, enclave_id) {
     try {
-        const update_type = validatorService.validateAndNormalizeUpdateType(req.query.update);
+        const { updateType: update_type, tcbedn } = validatorService.validateTcbCollateralQueryParams(req.query);
 
         // call service
         const version = appUtil.getApiVersionFromUrl(req.originalUrl);
         const enclaveIdentityJson = await identityService.getEnclaveIdentity(
             enclave_id,
             version,
-            update_type
+            update_type,
+            tcbedn
         );
 
         // send response

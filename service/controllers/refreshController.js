@@ -44,7 +44,7 @@ export async function refreshCache(req, res, next) {
             throw new PccsError(PccsStatus.PCCS_STATUS_INVALID_REQ);
         }
         if (type) {
-            fmspc = validatorService.validateAndNormalizeFmspc(fmspc);
+            fmspc = validatorService.validateFmspcStr(fmspc);
         }
 
         // call service

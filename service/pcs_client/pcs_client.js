@@ -156,6 +156,14 @@ export async function getCertsWithManifest(platformManifest, pceid) {
     return doRequest(`${Config.get('uri')}pckcerts`, options);
 }
 
+export async function getTcbEvalDataNumbers(type) {
+    if (type !== Constants.PROD_TYPE_SGX && type !== Constants.PROD_TYPE_TDX) {
+        throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
+    }
+    const uri = `${Config.get('uri')}tcbevaluationdatanumbers`;
+    return doRequest(type === Constants.PROD_TYPE_TDX ? getTdxUrl(uri) : uri, { method: 'GET' });
+}
+
 export async function getPckCrl(ca) {
     const options = {
         searchParams: {
@@ -169,7 +177,7 @@ export async function getPckCrl(ca) {
     return doRequest(`${Config.get('uri')}pckcrl`, options);
 }
 
-export async function getTcb(type, fmspc, version, updateType) {
+export async function getTcb(type, fmspc, version, updateType, tcbedn = -1) {
     if (version === 3) {
         throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
@@ -177,7 +185,8 @@ export async function getTcb(type, fmspc, version, updateType) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
 
-    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
+    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY &&
+        !(updateType === Constants.UPDATE_TYPE_TCBEDN && Number.isSafeInteger(tcbedn) && tcbedn >= 0)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
@@ -185,7 +194,7 @@ export async function getTcb(type, fmspc, version, updateType) {
     const options = {
         searchParams: {
             fmspc,
-            update
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };
@@ -198,7 +207,7 @@ export async function getTcb(type, fmspc, version, updateType) {
     return doRequest(uri, options);
 }
 
-export async function getEnclaveIdentity(enclaveId, version, updateType) {
+export async function getEnclaveIdentity(enclaveId, version, updateType, tcbedn = -1) {
     if (version === 3) {
         throw new PccsError(PccsStatus.PCCS_STATUS_PCS_V3_REACHED_EOL);
     }
@@ -209,14 +218,15 @@ export async function getEnclaveIdentity(enclaveId, version, updateType) {
     ) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
-    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY) {
+    if (updateType !== Constants.UPDATE_TYPE_STANDARD && updateType !== Constants.UPDATE_TYPE_EARLY &&
+        !(updateType === Constants.UPDATE_TYPE_TCBEDN && Number.isSafeInteger(tcbedn) && tcbedn >= 0)) {
         throw new PccsError(PccsStatus.PCCS_STATUS_INTERNAL_ERROR);
     }
     const update = updateType === Constants.UPDATE_TYPE_EARLY ? 'early' : 'standard';
 
     const options = {
         searchParams: {
-            update
+            ...updateType === Constants.UPDATE_TYPE_TCBEDN ? { tcbEvaluationDataNumber: tcbedn } : { update }
         },
         method: 'GET',
     };
